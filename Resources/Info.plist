@@ -5,17 +5,17 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>MD_View-Edit_macOS</string>
+    <string>MD-design-macOS</string>
     <key>CFBundleExecutable</key>
-    <string>MDViewEditMacOS</string>
+    <string>MDDesignMacOS</string>
     <key>CFBundleIdentifier</key>
-    <string>com.local.mdvieweditmacos</string>
+    <string>com.local.mddesignmacos</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>MD_View-Edit_macOS</string>
+    <string>MD-design-macOS</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

@@ -12,7 +12,30 @@ let root = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : FileMana
 let webviewDir = URL(fileURLWithPath: root).appendingPathComponent("Resources/Webview")
 let indexURL = webviewDir.appendingPathComponent("index.html")
 let demoURL = URL(fileURLWithPath: root).appendingPathComponent("markdown_demo.md")
-let markdown = (try? String(contentsOf: demoURL, encoding: .utf8)) ?? "# Hello\n\n- [ ] task\n"
+let demoMarkdown = (try? String(contentsOf: demoURL, encoding: .utf8)) ?? "# Hello\n\n- [ ] task\n"
+// Fixture exercising v2.0.3 features: a toggle (editable title NodeView) and a
+// table (TableWithRail NodeView with the "+" append bands). v2.0.4 adds two
+// column-width tables: one uniform-dash (must stay attr-free) and one with
+// proportional dash counts (must restore colwidth 80/200).
+let fixture = """
+
+
+<details>
+<summary>Smoke toggle</summary>
+
+Toggle body text
+
+</details>
+
+| SmkA | SmkB |
+|------|------|
+| 1    | 2    |
+
+| Wide | Wider |
+| ---- | ---------- |
+| a    | b      |
+"""
+let markdown = demoMarkdown + fixture
 
 final class Delegate: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     var ready = false
@@ -112,7 +135,7 @@ Thread.sleep(forTimeInterval: 2.5)
 
 var mounted: Any?
 semaphore = false
-webView.evaluateJavaScript("({prosemirror: !!document.querySelector('#editor .ProseMirror'), bridge: !!window.__mdEditorBridge, bodyChars: document.body.innerText.length, logo: !!document.querySelector('.toolbar-logo'), aiPanel: !!document.getElementById('bm-ai'), aiMenuEntry: !!Array.from(document.querySelectorAll('[data-menu]')).find(b => b.dataset.menu === 'turn-into-ai'), usingAiText: document.body.innerHTML.includes('Using AI')})") { result, error in
+webView.evaluateJavaScript("({prosemirror: !!document.querySelector('#editor .ProseMirror'), bridge: !!window.__mdEditorBridge, bodyChars: document.body.innerText.length, logo: !!document.querySelector('.toolbar-logo'), aiPanel: !!document.getElementById('bm-ai'), aiMenuEntry: !!Array.from(document.querySelectorAll('[data-menu]')).find(b => b.dataset.menu === 'turn-into-ai'), usingAiText: document.body.innerHTML.includes('Using AI'), toggleTitle: !!document.querySelector('.ProseMirror details summary .toggle-title'), smokeToggle: !!Array.from(document.querySelectorAll('.ProseMirror details summary .toggle-title')).find(el => el.textContent === 'Smoke toggle'), tableWrap: !!document.querySelector('.ProseMirror .mp-table'), tableAddRow: !!document.querySelector('.ProseMirror .mp-table .mp-table-add-row'), tableAddCol: !!document.querySelector('.ProseMirror .mp-table .mp-table-add-col'), flyoutGone: !document.querySelector('.block-picker-flyout')})") { result, error in
     if let error { NSLog("[smoke] mount check error: %@", error.localizedDescription) }
     mounted = result
     semaphore = true
@@ -139,6 +162,18 @@ if isTrue(info["aiMenuEntry"]) { NSLog("[smoke] FAIL: turn-into-ai menu entry st
 if isTrue(info["usingAiText"]) { NSLog("[smoke] FAIL: 'Using AI' text still present in DOM"); exit(1) }
 NSLog("[smoke] removals verified: no logo, no AI menu/panel")
 
+// v2.0.3 feature checks (DOM presence):
+// - toggle title is wrapped in the editable .toggle-title span
+// - tables render through TableWithRail with the "+" append bands in the DOM
+// - the old Turn-into flyout element is gone (full picker list replaces it)
+if !isTrue(info["toggleTitle"]) { NSLog("[smoke] FAIL: .toggle-title span missing from toggle summary"); exit(1) }
+if !isTrue(info["smokeToggle"]) { NSLog("[smoke] FAIL: fixture toggle 'Smoke toggle' not rendered as .toggle-title"); exit(1) }
+if !isTrue(info["tableWrap"]) { NSLog("[smoke] FAIL: .mp-table wrapper missing"); exit(1) }
+if !isTrue(info["tableAddRow"]) { NSLog("[smoke] FAIL: .mp-table-add-row band missing"); exit(1) }
+if !isTrue(info["tableAddCol"]) { NSLog("[smoke] FAIL: .mp-table-add-col band missing"); exit(1) }
+if !isTrue(info["flyoutGone"]) { NSLog("[smoke] FAIL: .block-picker-flyout still present"); exit(1) }
+NSLog("[smoke] v2.0.3 verified: toggle title span, table add bands, no flyout")
+
 // Round-trip: ask the webview for its authoritative markdown.
 var roundTrip: Any?
 semaphore = false
@@ -155,6 +190,136 @@ guard let serialized = roundTrip as? String else {
     NSLog("[smoke] FAIL: getMarkdown returned nothing")
     exit(1)
 }
+if !serialized.contains("<summary>Smoke toggle</summary>") {
+    NSLog("[smoke] FAIL: serialized markdown lost the toggle summary")
+    exit(1)
+}
+NSLog("[smoke] toggle summary round-trips through markdown serialize")
+// v2.0.4 byte-stability: an unedited proportional-dash table must serialize
+// back with the identical delimiter row (parse stamps colwidth at parse time,
+// serialize re-derives the same dash counts).
+if !serialized.contains("| ---- | ---------- |") {
+    NSLog("[smoke] FAIL: proportional-dash delimiter did not round-trip; serialized table region missing '| ---- | ---------- |'")
+    exit(1)
+}
+NSLog("[smoke] dash-count delimiter round-trips byte-identical when unedited")
+
+// v2.0.4 — column widths in the parsed doc: uniform table attr-free,
+// proportional table gets colwidth [80, 200] (4/10 dashes × 20px).
+func evalJS(_ js: String, _ label: String) -> Any? {
+    var out: Any?
+    var done = false
+    webView.evaluateJavaScript(js) { result, error in
+        if let error { NSLog("[smoke] %@ error: %@", label, error.localizedDescription) }
+        out = result
+        done = true
+    }
+    let dl = Date().addingTimeInterval(10)
+    while !done, Date() < dl { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }
+    return out
+}
+
+let colwidths = evalJS("""
+(() => {
+  const ed = window.__mdEditorBridge.getEditor();
+  if (!ed) return { err: 'no editor' };
+  const out = {};
+  ed.state.doc.descendants((node) => {
+    if (node.type.name !== 'table') return true;
+    const head = node.firstChild ? node.firstChild.textContent : '';
+    const cw = [];
+    if (node.firstChild) node.firstChild.forEach(c => cw.push(c.attrs.colwidth ? c.attrs.colwidth[0] : 0));
+    if (head.includes('SmkA')) out.uniform = cw;
+    if (head.includes('Wide')) out.weighted = cw;
+    return true;
+  });
+  return out;
+})()
+""", "colwidth check") as? [String: Any]
+NSLog("[smoke] colwidth after parse: %@", String(describing: colwidths))
+func asInts(_ v: Any?) -> [Int] { (v as? [Any])?.map { ($0 as? Int) ?? Int(($0 as? Double) ?? -1) } ?? [] }
+guard asInts(colwidths?["uniform"]) == [0, 0] else {
+    NSLog("[smoke] FAIL: uniform-dash table gained colwidth attrs: %@", String(describing: colwidths?["uniform"]))
+    exit(1)
+}
+guard asInts(colwidths?["weighted"]) == [80, 200] else {
+    NSLog("[smoke] FAIL: proportional-dash table colwidth mismatch (want [80, 200]): %@", String(describing: colwidths?["weighted"]))
+    exit(1)
+}
+NSLog("[smoke] parse: uniform table attr-free, proportional table restored [80, 200]")
+
+// Simulate a resize: set colwidth [240, 480] on the proportional table via a
+// PM transaction (what the columnResizing plugin does on drag end).
+let resized = evalJS("""
+(() => {
+  const ed = window.__mdEditorBridge.getEditor();
+  let tablePos = -1, tableNode = null;
+  ed.state.doc.descendants((node, pos) => {
+    if (node.type.name === 'table' && node.firstChild && node.firstChild.textContent.includes('Wide')) {
+      tablePos = pos; tableNode = node; return false;
+    }
+    return true;
+  });
+  if (!tableNode) return 'not found';
+  const widths = [240, 480];
+  const tr = ed.state.tr;
+  let rowPos = tablePos + 1;
+  tableNode.forEach((row) => {
+    let cellPos = rowPos + 1;
+    row.forEach((cell, _o, ci) => {
+      tr.setNodeMarkup(cellPos, null, { ...cell.attrs, colwidth: [widths[ci]] });
+      cellPos += cell.nodeSize;
+    });
+    rowPos += row.nodeSize;
+  });
+  ed.view.dispatch(tr);
+  return 'ok';
+})()
+""", "resize tx") as? String
+guard resized == "ok" else { NSLog("[smoke] FAIL: resize transaction: %@", String(describing: resized)); exit(1) }
+
+let afterResize = evalJS("window.__mdEditorBridge.getMarkdown()", "getMarkdown after resize") as? String ?? ""
+// 240px → 12 dashes, 480px → 24 dashes (1 dash ≈ 20px).
+let wantDelim = "| ------------ | ------------------------ |"
+if !afterResize.contains(wantDelim) {
+    NSLog("[smoke] FAIL: resized table did not serialize proportional dashes; want %@ in output", wantDelim)
+    exit(1)
+}
+if afterResize.contains("| ------ | ------ |") {
+    NSLog("[smoke] FAIL: uniform table unexpectedly kept non-baseline dashes")
+    exit(1)
+}
+NSLog("[smoke] serialize: resized [240, 480] → 12/24 dashes; uniform table stays '---'")
+
+// Feed the resized markdown back through the real parse path (host sync path).
+_ = evalJS("window.__mdEditorBridge.applyContent(\(String(data: try! JSONEncoder().encode(afterResize), encoding: .utf8)!)); 'ok'", "applyContent")
+Thread.sleep(forTimeInterval: 1.0)
+let restored = evalJS("""
+(() => {
+  const ed = window.__mdEditorBridge.getEditor();
+  const out = {};
+  ed.state.doc.descendants((node) => {
+    if (node.type.name !== 'table') return true;
+    const head = node.firstChild ? node.firstChild.textContent : '';
+    const cw = [];
+    if (node.firstChild) node.firstChild.forEach(c => cw.push(c.attrs.colwidth ? c.attrs.colwidth[0] : 0));
+    if (head.includes('SmkA')) out.uniform = cw;
+    if (head.includes('Wide')) out.weighted = cw;
+    return true;
+  });
+  return out;
+})()
+""", "restored colwidth") as? [String: Any]
+guard asInts(restored?["weighted"]) == [240, 480] else {
+    NSLog("[smoke] FAIL: colwidth not restored after re-parse (want [240, 480]): %@", String(describing: restored?["weighted"]))
+    exit(1)
+}
+guard asInts(restored?["uniform"]) == [0, 0] else {
+    NSLog("[smoke] FAIL: uniform table gained colwidth after re-parse: %@", String(describing: restored?["uniform"]))
+    exit(1)
+}
+NSLog("[smoke] re-parse: widths [240, 480] restored; uniform table still attr-free")
+
 
 func normalize(_ s: String) -> String {
     s.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\\n+$", with: "", options: .regularExpression)

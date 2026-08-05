@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 @main
-struct MDViewEditMacOSApp: App {
+struct MDDesignMacOSApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
@@ -269,7 +269,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "\(url.lastPathComponent) — MD View-Edit"
+        window.title = "\(url.lastPathComponent) — MD Design"
         window.isReleasedWhenClosed = false
         window.center()
         window.contentView = NSHostingView(rootView: view)

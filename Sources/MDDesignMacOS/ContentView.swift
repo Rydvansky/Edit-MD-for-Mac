@@ -194,7 +194,7 @@ private struct AppearanceBridge: NSViewRepresentable {
 }
 
 /// Keeps the NSWindow chrome in sync with the document: title shows
-/// "<file> — MD View-Edit", the standard edited-state dot appears via
+/// "<file> — MD Design", the standard edited-state dot appears via
 /// isDocumentEdited, and representedURL gives the native proxy icon.
 private struct WindowTitleSync: NSViewRepresentable {
     let store: DocumentStore
@@ -212,7 +212,7 @@ private struct WindowTitleSync: NSViewRepresentable {
     private func apply(from view: NSView) {
         DispatchQueue.main.async {
             guard let window = view.window else { return }
-            window.title = "\(store.currentFileName) — MD View-Edit"
+            window.title = "\(store.currentFileName) — MD Design"
             window.isDocumentEdited = store.isDirty
             window.representedURL = store.fileURL
         }

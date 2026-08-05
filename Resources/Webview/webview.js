@@ -171195,6 +171195,10 @@ body {
     transform: none;
     max-width: 40vw;
   }
+
+  /* Hide the dedicated refresh button \u2014 the same action is in the
+     three-dots menu (actions-panel-dots). */
+  #toolbar #refresh-btn { display: none; }
 }
 
 /* Segmented control \u2014 macOS style */
@@ -172371,6 +172375,15 @@ html.source-full-width #source-view {
 .ProseMirror details:dir(rtl) summary::before { content: '\u25C0'; }
 .ProseMirror details[open]:dir(rtl) summary::before { transform: rotate(-90deg); }
 
+/* Toggle title is inline-editable: text cursor on the title span, subtle
+   background while editing. Clicks on the arrow still toggle the details. */
+.ProseMirror details summary .toggle-title { cursor: text; border-radius: 4px; padding: 0 2px; }
+.ProseMirror details summary .toggle-title.editing {
+  outline: none;
+  background: var(--block-hover);
+  user-select: text;
+}
+
 /* \u2500\u2500 RTL layout overrides \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
    Block-level direction is set explicitly via the BlockDirection extension's
    ProseMirror decorations (per-block for paragraphs/headings/etc., or once
@@ -173078,6 +173091,46 @@ html.source-full-width #source-view {
 .mp-table-col-grip svg { transform: rotate(90deg); } /* dragged horizontally */
 .mp-table-grip.mp-table-grip-dragging { cursor: grabbing; color: var(--link); }
 
+/* "+" append bands \u2014 thin strips past the bottom / right edge, styled like
+   the rail chrome (subtle at rest, --block-hover on hover). Shown by the
+   NodeView only while the pointer is in the edge strip. */
+.mp-table-add-row,
+.mp-table-add-col {
+  position: absolute;
+  display: none;              /* set to flex on edge-hover by the NodeView */
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  color: #9b9a97;
+  font-size: 11px;
+  line-height: 1;
+  user-select: none;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.mp-table-add-row { height: 12px; }
+.mp-table-add-col { width: 12px; }
+.mp-table-add-row:hover,
+.mp-table-add-col:hover { background: var(--block-hover); color: #5f5e5b; }
+
+/* Column resizing (prosemirror-tables columnResizing plugin). The handle is
+   a widget inside the cell hugging its right edge \u2014 a thin blue line, like
+   the selection outline. Cells need position:relative to anchor it. */
+.ProseMirror .mp-table td,
+.ProseMirror .mp-table th { position: relative; }
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 3px;
+  z-index: 5;
+  background: var(--link);
+  pointer-events: none;
+}
+.ProseMirror .column-resize-dragging td,
+.ProseMirror .column-resize-dragging th { cursor: col-resize; }
+
 /* Drop indicator \u2014 a separate blue line between rows (horizontal) or columns
    (vertical), never a cell outline (twin of .cb-drop-line). */
 .mp-table-drop-line {
@@ -173357,37 +173410,6 @@ html.source-full-width #source-view {
   color: var(--text-secondary);
   opacity: 0.85;
 }
-
-/* Turn-into flyout: contained in the action panel el, placed via placeFlyout().
-   Carries its own visual chrome (not .block-picker) so querySelectorAll('.block-picker')
-   never accidentally picks it up \u2014 it uses block-picker-flyout as its sole class. */
-.block-picker-flyout {
-  position: fixed;
-  width: 230px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 6px 6px 0;
-  box-shadow: 0 12px 28px rgba(0,0,0,0.16), 0 2px 8px rgba(0,0,0,0.08);
-  z-index: 1050;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0,0,0,0.2) transparent;
-}
-
-.theme-dark .block-picker-flyout {
-  box-shadow: 0 12px 28px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);
-  scrollbar-color: rgba(255,255,255,0.2) transparent;
-}
-
-.block-picker-flyout::-webkit-scrollbar { width: 6px; height: 6px; }
-.block-picker-flyout::-webkit-scrollbar-track { background: transparent; }
-.block-picker-flyout::-webkit-scrollbar-thumb {
-  background: rgba(0,0,0,0.18);
-  border-radius: 3px;
-}
-
-.block-picker-flyout.is-scroll { overflow-y: auto; }
 
 .block-picker-emoji-icon {
   display: inline-flex;
@@ -199134,48 +199156,6 @@ img.ProseMirror-separator {
     }
     return { top: top3, bottom: bottom3 };
   }
-  function computeFlyoutPlacement(input) {
-    const gap = input.gap ?? 8;
-    const margin = input.margin ?? 8;
-    const { panel: panel2, row, size: size4, viewport: vp } = input;
-    const spaceRight = vp.width - (panel2.left + panel2.width) - gap - margin;
-    const spaceLeft = panel2.left - gap - margin;
-    let side;
-    if (size4.width <= spaceRight + FUZZ) side = "right";
-    else if (size4.width <= spaceLeft + FUZZ) side = "left";
-    else if (spaceRight >= spaceLeft) side = "right";
-    else side = "left";
-    let left4 = side === "right" ? panel2.left + panel2.width + gap : panel2.left - gap - size4.width;
-    left4 = clamp(left4, margin, vp.width - size4.width - margin);
-    const cappedH = Math.min(size4.height, input.maxHeight ?? Infinity);
-    const avail = vp.height - 2 * margin;
-    const effH = Math.max(0, Math.min(cappedH, avail));
-    const scroll = size4.height > effH + FUZZ;
-    const maxHeight = scroll ? effH : null;
-    let top3 = clamp(row.top, margin, vp.height - effH - margin);
-    return { left: left4, top: top3, side, maxHeight, scroll };
-  }
-  function placeFlyout(flyoutEl, panelEl, anchorRowEl, opts = {}) {
-    const panel2 = panelEl.getBoundingClientRect();
-    const row = anchorRowEl.getBoundingClientRect();
-    const natH = flyoutEl.scrollHeight + (flyoutEl.offsetHeight - flyoutEl.clientHeight);
-    const p3 = computeFlyoutPlacement({
-      panel: { top: panel2.top, left: panel2.left, width: panel2.width, height: panel2.height },
-      row: { top: row.top, left: row.left, width: row.width, height: row.height },
-      size: { width: flyoutEl.offsetWidth, height: natH },
-      viewport: { width: window.innerWidth, height: window.innerHeight },
-      maxHeight: opts.maxHeight
-    });
-    flyoutEl.style.left = `${p3.left}px`;
-    flyoutEl.style.top = `${p3.top}px`;
-    if (p3.scroll) {
-      flyoutEl.classList.add("is-scroll");
-      flyoutEl.style.maxHeight = `${p3.maxHeight ?? 0}px`;
-    } else {
-      flyoutEl.classList.remove("is-scroll");
-      flyoutEl.style.maxHeight = "";
-    }
-  }
 
   // src/webview/popover.ts
   var openStack = [];
@@ -199512,6 +199492,130 @@ img.ProseMirror-separator {
     editor.view.dispatch(editor.state.tr.replaceWith(loc.tablePos, loc.tablePos + fresh.nodeSize, newTable));
   }
 
+  // src/webview/tableWidths.ts
+  var PX_PER_DASH = 20;
+  var MIN_DASHES = 3;
+  var MAX_DASHES = 60;
+  var MIN_COL_PX = 60;
+  var MAX_COL_PX = MAX_DASHES * PX_PER_DASH;
+  function dashesForWidth(px) {
+    if (!px || px <= 0) return "---";
+    const n2 = Math.min(MAX_DASHES, Math.max(MIN_DASHES, Math.round(px / PX_PER_DASH)));
+    return "-".repeat(n2);
+  }
+  function widthForDashes(dashes) {
+    return Math.min(MAX_COL_PX, Math.max(MIN_COL_PX, dashes * PX_PER_DASH));
+  }
+  var pending = null;
+  function setPendingTableWidths(tables) {
+    pending = tables.length ? tables : null;
+  }
+  function takePendingTableWidths() {
+    const t4 = pending;
+    pending = null;
+    return t4;
+  }
+  var FENCE_RE = /^(```+|~~~+)/;
+  var DELIM_CELL_RE = /^:?-+:?$/;
+  function stripBlockquote(line2) {
+    let s2 = line2;
+    for (; ; ) {
+      const m3 = s2.match(/^ {0,3}>[ ]?/);
+      if (!m3) return s2;
+      s2 = s2.slice(m3[0].length);
+    }
+  }
+  function splitRowCells(line2) {
+    let s2 = line2.trim();
+    if (s2.startsWith("|")) s2 = s2.slice(1);
+    if (s2.endsWith("|")) s2 = s2.slice(0, -1);
+    return s2.split("|").map((c4) => c4.trim());
+  }
+  function delimDashCounts(line2) {
+    const t4 = line2.trim();
+    if (!t4.includes("|") || !t4.includes("-")) return null;
+    if (!/^[|: \-]+$/.test(t4)) return null;
+    const cells = splitRowCells(t4);
+    if (!cells.length) return null;
+    const counts = [];
+    for (const c4 of cells) {
+      if (!DELIM_CELL_RE.test(c4)) return null;
+      counts.push((c4.match(/-/g) ?? []).length);
+    }
+    return counts;
+  }
+  function scanTableDashCounts(markdown2) {
+    const lines = markdown2.split("\n");
+    const tables = [];
+    let fence3 = null;
+    for (let i3 = 0; i3 < lines.length; i3++) {
+      const raw = lines[i3];
+      const stripped = stripBlockquote(raw);
+      const fenceMatch = stripped.trimStart().match(FENCE_RE);
+      if (fenceMatch) {
+        const marker = fenceMatch[1].slice(0, 3);
+        fence3 = fence3 === marker ? null : fence3 ?? marker;
+        continue;
+      }
+      if (fence3) continue;
+      if (stripped === raw && /^ {4}|^\t/.test(raw)) continue;
+      const counts = delimDashCounts(stripped);
+      if (!counts || i3 === 0) continue;
+      const header2 = stripBlockquote(lines[i3 - 1]);
+      if (!header2.includes("|") || delimDashCounts(header2)) continue;
+      if (splitRowCells(header2).length !== counts.length) continue;
+      tables.push(counts);
+    }
+    return tables;
+  }
+  function stampTableWidths(root4) {
+    const tables = takePendingTableWidths();
+    if (!tables?.length) return;
+    const domTables = Array.from(root4.querySelectorAll("table"));
+    domTables.forEach((tbl, idx) => {
+      const counts = tables[idx];
+      if (!counts?.length) return;
+      if (counts.every((c4) => c4 === counts[0])) return;
+      tbl.querySelectorAll("tr").forEach((row) => {
+        Array.from(row.children).forEach((cell2, ci) => {
+          const dashes = counts[ci];
+          if (!dashes) return;
+          cell2.setAttribute("colwidth", String(widthForDashes(dashes)));
+        });
+      });
+    });
+  }
+  function syncColWidths(node2, colgroup, table3, defaultMinWidth) {
+    const row = node2.firstChild;
+    if (!row) return;
+    const widths = [];
+    let total = 0;
+    let allFixed = true;
+    row.forEach((cell2) => {
+      const colspan = cell2.attrs.colspan ?? 1;
+      const colwidth = cell2.attrs.colwidth;
+      for (let j3 = 0; j3 < colspan; j3++) {
+        const w4 = colwidth?.[j3] ?? 0;
+        widths.push(w4);
+        total += w4 || defaultMinWidth;
+        if (!w4) allFixed = false;
+      }
+    });
+    while (colgroup.firstChild) colgroup.removeChild(colgroup.firstChild);
+    for (const w4 of widths) {
+      const col = document.createElement("col");
+      if (w4) col.style.width = `${w4}px`;
+      colgroup.appendChild(col);
+    }
+    if (allFixed && widths.length) {
+      table3.style.width = `${total}px`;
+      table3.style.minWidth = "";
+    } else {
+      table3.style.width = "";
+      table3.style.minWidth = `${total}px`;
+    }
+  }
+
   // src/webview/tableNodeView.ts
   var DRAG_THRESHOLD_PX = 4;
   var BAND = 24;
@@ -199521,6 +199625,41 @@ img.ProseMirror-separator {
   var COL_MAX = 96;
   var RGRIP_H = 24;
   var CGRIP_W = 24;
+  var DEFAULT_CELL_MIN = 60;
+  function hasSpanCell(node2) {
+    return node2.attrs.colspan > 1 || node2.attrs.rowspan > 1;
+  }
+  function isPipeSerializable(node2) {
+    const firstRow = node2.firstChild;
+    if (!firstRow) return false;
+    const badHeader = firstRow.content.content.some(
+      (cell2) => cell2.type.name !== "tableHeader" || hasSpanCell(cell2) || cell2.childCount > 1
+    );
+    if (badHeader) return false;
+    const bodyRows = node2.content.content.slice(1);
+    return !bodyRows.some(
+      (row) => row.content.content.some(
+        (cell2) => cell2.type.name === "tableHeader" || hasSpanCell(cell2) || cell2.childCount > 1
+      )
+    );
+  }
+  function tableHtmlFallback(node2, parent4) {
+    const schema3 = node2.type.schema;
+    const html2 = getHTMLFromFragment(Fragment.from(node2), schema3);
+    const isTopLevel = parent4 instanceof Fragment || parent4?.type?.name === schema3.topNodeType.name;
+    if (node2.isBlock && isTopLevel) {
+      const dom = document.createElement("div");
+      dom.innerHTML = html2;
+      const element3 = dom.firstElementChild;
+      if (element3) {
+        element3.innerHTML = element3.innerHTML.trim() ? `
+${element3.innerHTML}
+` : "\n";
+        return element3.outerHTML;
+      }
+    }
+    return html2;
+  }
   var RM_ICON = {
     "insert-above": '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
     "insert-below": '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>',
@@ -199545,7 +199684,7 @@ img.ProseMirror-separator {
   }
   var TableWithRail = Table.extend({
     addNodeView() {
-      return ({ editor, getPos, HTMLAttributes }) => {
+      return ({ node: node2, editor, getPos, HTMLAttributes }) => {
         const wrapper = document.createElement("div");
         wrapper.className = "mp-table";
         const rowStroke = mkEl("mp-table-row-stroke mp-table-stroke");
@@ -199555,14 +199694,21 @@ img.ProseMirror-separator {
         rowGrip.appendChild(createGripIcon());
         colGrip.appendChild(createGripIcon());
         const selBox = mkEl("mp-table-sel-box");
+        const addRowBtn = mkEl("mp-table-add-row");
+        const addColBtn = mkEl("mp-table-add-col");
+        addRowBtn.textContent = "+";
+        addColBtn.textContent = "+";
         const table3 = document.createElement("table");
         const attrs2 = mergeAttributes(HTMLAttributes);
         for (const [k3, v3] of Object.entries(attrs2)) {
           if (v3 != null) table3.setAttribute(k3, String(v3));
         }
+        const colgroup = document.createElement("colgroup");
+        table3.appendChild(colgroup);
+        syncColWidths(node2, colgroup, table3, DEFAULT_CELL_MIN);
         const tbody = document.createElement("tbody");
         table3.appendChild(tbody);
-        wrapper.append(rowStroke, colStroke, rowGrip, colGrip, selBox, table3);
+        wrapper.append(rowStroke, colStroke, rowGrip, colGrip, selBox, addRowBtn, addColBtn, table3);
         function mkEl(cls) {
           const el2 = document.createElement("div");
           el2.className = cls;
@@ -199579,13 +199725,14 @@ img.ProseMirror-separator {
         function loc() {
           const tablePos = getPos?.();
           if (typeof tablePos !== "number") return null;
-          const node2 = editor.state.doc.nodeAt(tablePos);
-          if (!node2 || node2.type.name !== "table") return null;
-          return { tablePos, node: node2 };
+          const node3 = editor.state.doc.nodeAt(tablePos);
+          if (!node3 || node3.type.name !== "table") return null;
+          return { tablePos, node: node3 };
         }
         function hideAll() {
           rowStroke.style.display = colStroke.style.display = "none";
           rowGrip.style.display = colGrip.style.display = "none";
+          addRowBtn.style.display = addColBtn.style.display = "none";
         }
         function hideSelBox() {
           selBox.style.display = "none";
@@ -199632,8 +199779,8 @@ img.ProseMirror-separator {
           } else {
             const $f = sel.$from;
             for (let d3 = $f.depth; d3 > 0; d3--) {
-              const node2 = $f.node(d3);
-              if (node2.type.name === "tableCell" || node2.type.name === "tableHeader") {
+              const node3 = $f.node(d3);
+              if (node3.type.name === "tableCell" || node3.type.name === "tableHeader") {
                 const dom = editor.view.nodeDOM($f.before(d3));
                 if (dom instanceof HTMLElement) cells.push(dom);
                 break;
@@ -199673,9 +199820,27 @@ img.ProseMirror-separator {
           const near = x6 >= t4.left - BAND && x6 <= t4.right + 6 && y6 >= t4.top - BAND && y6 <= t4.bottom + 6;
           const cell2 = e3.target?.closest?.("td, th");
           const overCell = !!cell2 && tbody.contains(cell2);
-          if (!overCell && !near) {
+          const nearBottom = x6 >= t4.left && x6 <= t4.right && y6 > t4.bottom - EDGE_IN && y6 <= t4.bottom + BAND;
+          const nearRight = y6 >= t4.top && y6 <= t4.bottom && x6 > t4.right - EDGE_IN && x6 <= t4.right + BAND;
+          if (!overCell && !near && !nearBottom && !nearRight) {
             hideAll();
             return;
+          }
+          if (nearBottom) {
+            addRowBtn.style.left = `${t4.left - w4.left}px`;
+            addRowBtn.style.top = `${t4.bottom - w4.top + 2}px`;
+            addRowBtn.style.width = `${t4.width}px`;
+            addRowBtn.style.display = "flex";
+          } else {
+            addRowBtn.style.display = "none";
+          }
+          if (nearRight) {
+            addColBtn.style.left = `${t4.right - w4.left + 2}px`;
+            addColBtn.style.top = `${t4.top - w4.top}px`;
+            addColBtn.style.height = `${t4.height}px`;
+            addColBtn.style.display = "flex";
+          } else {
+            addColBtn.style.display = "none";
           }
           let rowTr = null;
           let rowIdx = -1;
@@ -199958,14 +200123,30 @@ img.ProseMirror-separator {
         }
         rowGrip.addEventListener("mousedown", (e3) => beginDrag("row", e3));
         colGrip.addEventListener("mousedown", (e3) => beginDrag("col", e3));
+        addRowBtn.addEventListener("mousedown", (e3) => {
+          e3.preventDefault();
+          e3.stopPropagation();
+          const l4 = loc();
+          if (!l4) return;
+          insertRowRelative(editor, l4, l4.node.childCount - 1, "below");
+        });
+        addColBtn.addEventListener("mousedown", (e3) => {
+          e3.preventDefault();
+          e3.stopPropagation();
+          const l4 = loc();
+          if (!l4) return;
+          insertColumnRelative(editor, l4, columnCount(l4.node) - 1, "right");
+        });
         return {
           dom: wrapper,
           contentDOM: tbody,
           ignoreMutation(mutation) {
             const t4 = mutation.target;
-            for (const el2 of [rowStroke, colStroke, rowGrip, colGrip, selBox]) {
+            for (const el2 of [rowStroke, colStroke, rowGrip, colGrip, selBox, addRowBtn, addColBtn]) {
               if (t4 === el2 || el2.contains(t4)) return true;
             }
+            if (t4 === colgroup || colgroup.contains(t4)) return true;
+            if (t4 === table3 && mutation.type === "attributes") return true;
             return false;
           },
           destroy() {
@@ -199977,6 +200158,55 @@ img.ProseMirror-separator {
             menu.close();
           }
         };
+      };
+    },
+    addStorage() {
+      return {
+        markdown: {
+          // Same output shape as tiptap-markdown's default table serializer,
+          // but the delimiter row's dash counts are proportional to each
+          // column's colwidth (dashesForWidth). Columns without a width keep
+          // the plain "---", so untouched tables serialize exactly as before.
+          serialize(state4, node2, parent4) {
+            if (!isPipeSerializable(node2)) {
+              state4.write(tableHtmlFallback(node2, parent4));
+              state4.closeBlock(node2);
+              return;
+            }
+            state4.inTable = true;
+            const widths = [];
+            node2.firstChild?.forEach((cell2) => {
+              const cw = cell2.attrs.colwidth;
+              widths.push(cw?.[0] ?? null);
+            });
+            node2.forEach((row, _offset, i3) => {
+              state4.write("| ");
+              row.forEach((col, _offset2, j3) => {
+                if (j3) state4.write(" | ");
+                const cellContent = col.firstChild;
+                if (cellContent && cellContent.textContent.trim()) {
+                  state4.renderInline(cellContent);
+                }
+              });
+              state4.write(" |");
+              state4.ensureNewLine();
+              if (!i3) {
+                const delimiterRow = widths.map(dashesForWidth).join(" | ");
+                state4.write(`| ${delimiterRow} |`);
+                state4.ensureNewLine();
+              }
+            });
+            state4.closeBlock(node2);
+            state4.inTable = false;
+          },
+          parse: {
+            // Stamp colwidth attrs recovered from delimiter dash counts before
+            // ProseMirror parses the DOM (see tableWidths.ts).
+            updateDOM(element3) {
+              stampTableWidths(element3);
+            }
+          }
+        }
       };
     }
   });
@@ -240871,7 +241101,7 @@ ${body}
   function bridge() {
     return window.__mdViewerVscode;
   }
-  var pending = /* @__PURE__ */ new Map();
+  var pending2 = /* @__PURE__ */ new Map();
   var counter = 0;
   var listenerInstalled = false;
   function ensureListener() {
@@ -240880,31 +241110,31 @@ ${body}
     window.addEventListener("message", (event3) => {
       const msg = event3.data;
       if (!msg || typeof msg.requestId !== "string") return;
-      const p3 = pending.get(msg.requestId);
+      const p3 = pending2.get(msg.requestId);
       if (!p3) return;
       if (msg.type === "imageSaved") {
-        pending.delete(msg.requestId);
+        pending2.delete(msg.requestId);
         if (msg.error) p3.reject(new Error(msg.error));
         else p3.resolve(msg.relPath ?? "");
       } else if (msg.type === "projectImagePicked") {
-        pending.delete(msg.requestId);
+        pending2.delete(msg.requestId);
         if (msg.error) p3.reject(new Error(msg.error));
         else if (msg.canceled) p3.resolve(null);
         else p3.resolve(msg.relPath ?? null);
       } else if (msg.type === "clipboardImageResolved") {
-        pending.delete(msg.requestId);
+        pending2.delete(msg.requestId);
         if (msg.error) p3.reject(new Error(msg.error));
         else p3.resolve(msg.src ?? "");
       } else if (msg.type === "imageRevealed") {
-        pending.delete(msg.requestId);
+        pending2.delete(msg.requestId);
         if (msg.error) p3.reject(new Error(msg.error));
         else p3.resolve("");
       } else if (msg.type === "imagePathCopied") {
-        pending.delete(msg.requestId);
+        pending2.delete(msg.requestId);
         if (msg.error) p3.reject(new Error(msg.error));
         else p3.resolve("");
       } else if (msg.type === "imageBytesRead") {
-        pending.delete(msg.requestId);
+        pending2.delete(msg.requestId);
         if (msg.error) p3.reject(new Error(msg.error));
         else p3.resolve(msg.bytesBase64 ?? "");
       }
@@ -240920,10 +241150,10 @@ ${body}
     if (!vs) return Promise.reject(new Error("no vscode bridge"));
     const requestId = nextId3();
     return new Promise((resolve2, reject3) => {
-      pending.set(requestId, { resolve: resolve2, reject: reject3 });
+      pending2.set(requestId, { resolve: resolve2, reject: reject3 });
       vs.postMessage({ ...message, requestId });
       setTimeout(() => {
-        if (pending.delete(requestId)) reject3(new Error(`${String(message.type)} timed out`));
+        if (pending2.delete(requestId)) reject3(new Error(`${String(message.type)} timed out`));
       }, 6e4);
     });
   }
@@ -243144,18 +243374,77 @@ ${content}
       ];
     },
     addNodeView() {
-      return ({ node: node2 }) => {
+      return ({ node: node2, editor, getPos }) => {
         const dom = document.createElement("details");
         dom.setAttribute("dir", "auto");
         const summary = document.createElement("summary");
         summary.contentEditable = "false";
         summary.setAttribute("dir", "auto");
-        summary.textContent = node2.attrs.summary || "Toggle";
+        const title2 = document.createElement("span");
+        title2.className = "toggle-title";
+        title2.contentEditable = "false";
+        title2.textContent = node2.attrs.summary || "Toggle";
+        summary.appendChild(title2);
         const content = document.createElement("div");
         content.className = "toggle-content";
         content.setAttribute("dir", "auto");
         dom.appendChild(summary);
         dom.appendChild(content);
+        let currentNode = node2;
+        let editing = false;
+        const commitSummary = (cancel) => {
+          if (!editing) return;
+          editing = false;
+          title2.contentEditable = "false";
+          title2.classList.remove("editing");
+          const prev2 = currentNode.attrs.summary || "Toggle";
+          const next3 = cancel ? prev2 : (title2.textContent ?? "").trim() || "Toggle";
+          title2.textContent = next3;
+          if (cancel || next3 === prev2) return;
+          const pos = typeof getPos === "function" ? getPos() : void 0;
+          if (typeof pos !== "number") return;
+          editor.chain().command(({ tr: tr2 }) => {
+            tr2.setNodeMarkup(pos, void 0, { ...currentNode.attrs, summary: next3 });
+            return true;
+          }).run();
+        };
+        const startEdit = () => {
+          if (editing) return;
+          editing = true;
+          title2.contentEditable = "true";
+          title2.classList.add("editing");
+          title2.focus();
+          const range3 = document.createRange();
+          range3.selectNodeContents(title2);
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(range3);
+        };
+        summary.addEventListener("click", (e3) => {
+          if (editing) {
+            e3.preventDefault();
+            return;
+          }
+          if (title2.contains(e3.target)) {
+            e3.preventDefault();
+            startEdit();
+          }
+        });
+        title2.addEventListener("mousedown", (e3) => {
+          if (editing) e3.stopPropagation();
+        });
+        title2.addEventListener("keydown", (e3) => {
+          if (!editing) return;
+          e3.stopPropagation();
+          if (e3.key === "Enter") {
+            e3.preventDefault();
+            commitSummary(false);
+          } else if (e3.key === "Escape") {
+            e3.preventDefault();
+            commitSummary(true);
+          }
+        });
+        title2.addEventListener("blur", () => commitSummary(false));
         return {
           dom,
           contentDOM: content,
@@ -243169,8 +243458,9 @@ ${content}
           },
           update(updatedNode) {
             if (updatedNode.type !== node2.type) return false;
+            currentNode = updatedNode;
             const next3 = updatedNode.attrs.summary || "Toggle";
-            if (next3 !== summary.textContent) summary.textContent = next3;
+            if (!editing && next3 !== title2.textContent) title2.textContent = next3;
             return true;
           }
         };
@@ -244599,17 +244889,17 @@ ${content}
 
   // node_modules/@popperjs/core/lib/utils/debounce.js
   function debounce2(fn4) {
-    var pending2;
+    var pending3;
     return function() {
-      if (!pending2) {
-        pending2 = new Promise(function(resolve2) {
+      if (!pending3) {
+        pending3 = new Promise(function(resolve2) {
           Promise.resolve().then(function() {
-            pending2 = void 0;
+            pending3 = void 0;
             resolve2(fn4());
           });
         });
       }
-      return pending2;
+      return pending3;
     };
   }
 
@@ -247705,179 +247995,6 @@ ${content}
     });
   }
 
-  // src/webview/blockFormatReference.ts
-  var BLOCK_IDS = ["kanban", "table", "mermaid", "callout", "toggle"];
-  function boardExample(view) {
-    const av = view === "table" ? ` active-view="table"` : "";
-    return [
-      `<!-- board:start id="b1" name="My Board" columns="Todo|Doing|Done" column-colors="blue|amber|emerald" field-types="Title=text,Status=status,Owner=person,Due=date,id=text" hidden-fields="id"${av} -->`,
-      ``,
-      `| Title | Status | Owner | Due | id |`,
-      `|---|---|---|---|---|`,
-      `| Write the spec | Doing | @maya | 2026-06-10 | C1 |`,
-      `| Review the PR | Todo |  |  | C2 |`,
-      ``,
-      `<!-- board:body id="C1" -->`,
-      ``,
-      `Longer notes for this card live here.`,
-      ``,
-      `<!-- board:end -->`
-    ].join("\n");
-  }
-  var BOARD_RULES = [
-    "The whole region from `<!-- board:start \u2026 -->` through `<!-- board:end -->` is ONE block \u2014 do not split it.",
-    "Start-marker attributes, in order: `id`, `name`, `columns` (pipe-separated), `column-colors`, `field-types`, `field-options`, `hidden-fields`, optional `active-view`.",
-    "Allowed colour tokens (for `column-colors` and `field-options`): gray, blue, amber, emerald, red, purple, orange, teal, indigo, pink.",
-    "Allowed `field-types` values: text, status, date, person, tags. Keep the hidden `id` field.",
-    "The built-in `Status` field's options are the `columns` (coloured by `column-colors`); each card's Status MUST be exactly one of them.",
-    'You can have MORE THAN ONE `status` column. Extra `status` columns and any `tags` column carry their own options + colours via `field-options="Field=opt:colour|opt:colour;Other=a:blue|b:red"` (fields split by `;`, options by `|`, name and colour by `:`).',
-    "A `tags` cell is a comma-separated list of tag names (a card can have several); each tag is its own coloured chip. A tag not listed in `field-options` is auto-coloured. Names in `columns`/`field-options`/tags must not contain `| ; : =` (tag names also drop `,`).",
-    'Group the Table view by any status or tag column with a view marker placed right after `board:start`: `<!-- board:view name="table" group="FieldName" -->`.',
-    'Every card needs a unique `id` (C1, C2, \u2026) used in BOTH its table row and its `<!-- board:body id="\u2026" -->` block.',
-    "The board's own `id` must be unique within the file \u2014 do NOT copy `b1` from the example. Use a short random id like `b-k4x9`. Two boards sharing an id make the app treat them as the same board.",
-    "Dates as `YYYY-MM-DD`; people as `@name`. In table cells, escape pipes as `\\|` and use `<br>` for line breaks."
-  ];
-  var BLOCK_REFERENCES = {
-    kanban: {
-      id: "kanban",
-      title: "Kanban board",
-      whatItIs: "A board shown as columns of cards, grouped by a Status field. A custom block the app parses \u2014 the exact format below is required.",
-      example: boardExample("kanban"),
-      rules: BOARD_RULES
-    },
-    table: {
-      id: "table",
-      title: "Table board (database view)",
-      whatItIs: 'The SAME custom board block as Kanban, shown as a table/database grid (typed fields as columns). It is NOT a plain markdown table \u2014 it is the board block with `active-view="table"`.',
-      example: boardExample("table"),
-      rules: BOARD_RULES
-    },
-    mermaid: {
-      id: "mermaid",
-      title: "Mermaid diagram",
-      whatItIs: "A fenced code block with the `mermaid` language; renders as a live diagram.",
-      example: [
-        "```mermaid",
-        "flowchart TB",
-        "    A[Start] --> B[Process]",
-        "    B --> C[End]",
-        "```"
-      ].join("\n"),
-      rules: [
-        "Use a fenced code block whose info string is exactly `mermaid`.",
-        "Use standard Mermaid syntax; pick the diagram type that fits (flowchart, sequenceDiagram, stateDiagram-v2, gantt, \u2026).",
-        "Do NOT hand-author position/style sidecar comments (`%% mb-positions: \u2026`); the app's visual editor manages those automatically."
-      ]
-    },
-    callout: {
-      id: "callout",
-      title: "Callout",
-      whatItIs: "A GFM-style admonition with a coloured background and an icon.",
-      example: [
-        "> [!NOTE] \u{1F4A1}",
-        "> Body text here. Continuation lines are also prefixed with `>`."
-      ].join("\n"),
-      rules: [
-        "First line: `> [!TYPE] <emoji>` \u2014 TYPE uppercase; the emoji is optional (a sensible default is used per type).",
-        "Allowed TYPEs: NOTE, TIP, IMPORTANT, WARNING, CAUTION, INFO.",
-        "Every body line is prefixed with `> ` (like a blockquote)."
-      ]
-    },
-    toggle: {
-      id: "toggle",
-      title: "Toggle (collapsible)",
-      whatItIs: "A collapsible section using HTML `<details>` / `<summary>`.",
-      example: [
-        "<details>",
-        "<summary>Click to expand</summary>",
-        "",
-        "Hidden content goes here \u2014 any markdown is allowed.",
-        "",
-        "</details>"
-      ].join("\n"),
-      rules: [
-        "Use `<details>` with a `<summary>` as the first child (the clickable label).",
-        "Leave a blank line after `</summary>` and before `</details>` so the inner markdown parses."
-      ]
-    }
-  };
-
-  // src/webview/aiTransforms.ts
-  var SPARKLE = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M128 24 L150 106 L232 128 L150 150 L128 232 L106 150 L24 128 L106 106 Z"/></svg>';
-  var ASK_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M128 32C70.6 32 24 72.2 24 122c0 21.7 8.8 41.5 23.4 57L36 207a12 12 0 0 0 13.7 16.6L92 213a116 116 0 0 0 36 6c57.4 0 104-40.2 104-90S185.4 32 128 32Zm-40 102a14 14 0 1 1 14-14 14 14 0 0 1-14 14Zm40 0a14 14 0 1 1 14-14 14 14 0 0 1-14 14Zm40 0a14 14 0 1 1 14-14 14 14 0 0 1-14 14Z"/></svg>';
-  var TABLE_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M216 40H40a16 16 0 0 0-16 16v144a16 16 0 0 0 16 16h176a16 16 0 0 0 16-16V56a16 16 0 0 0-16-16ZM40 56h64v40H40Zm80 0h96v40h-96ZM40 112h64v40H40Zm0 88v-32h64v32Zm80 0v-32h96v32Zm96-48h-96v-40h96Z"/></svg>';
-  var KANBAN_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><rect x="32" y="48" width="44" height="160" rx="8"/><rect x="106" y="48" width="44" height="112" rx="8"/><rect x="180" y="48" width="44" height="136" rx="8"/></svg>';
-  var BOARD_TABLE_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><rect x="32" y="48" width="192" height="40" rx="8"/><rect x="32" y="104" width="192" height="28" rx="6" opacity="0.55"/><rect x="32" y="148" width="192" height="28" rx="6" opacity="0.55"/><rect x="32" y="192" width="192" height="28" rx="6" opacity="0.55"/></svg>';
-  var SUMMARY_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><rect x="40" y="72" width="176" height="20" rx="6"/><rect x="40" y="118" width="176" height="20" rx="6"/><rect x="40" y="164" width="110" height="20" rx="6"/></svg>';
-  var ACTION_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><rect x="36" y="52" width="56" height="56" rx="12"/><rect x="116" y="68" width="104" height="22" rx="6" opacity="0.55"/><rect x="36" y="148" width="56" height="56" rx="12" opacity="0.55"/><rect x="116" y="164" width="104" height="22" rx="6" opacity="0.55"/></svg>';
-  var OUTLINE_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><circle cx="52" cy="72" r="12"/><rect x="80" y="62" width="136" height="20" rx="6"/><circle cx="96" cy="128" r="9" opacity="0.7"/><rect x="120" y="119" width="96" height="18" rx="6" opacity="0.7"/><circle cx="96" cy="184" r="9" opacity="0.7"/><rect x="120" y="175" width="96" height="18" rx="6" opacity="0.7"/></svg>';
-  var TIMELINE_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><rect x="58" y="36" width="8" height="184" rx="4" opacity="0.5"/><circle cx="62" cy="72" r="16"/><circle cx="62" cy="128" r="16"/><circle cx="62" cy="184" r="16"/><rect x="96" y="62" width="120" height="20" rx="6" opacity="0.55"/><rect x="96" y="118" width="120" height="20" rx="6" opacity="0.55"/><rect x="96" y="174" width="120" height="20" rx="6" opacity="0.55"/></svg>';
-  var AI_TRANSFORMS = [
-    // Open-ended — a free-text request rather than a format conversion.
-    { id: "ask", label: "Ask AI\u2026", iconHtml: ASK_ICON },
-    // Phase 1 — structural (proprietary grammar).
-    { id: "table", label: "Table", iconHtml: TABLE_ICON },
-    { id: "kanban", label: "Board: Kanban", iconHtml: KANBAN_ICON },
-    { id: "board-table", label: "Board: Table", iconHtml: BOARD_TABLE_ICON },
-    { id: "mermaid", label: "Mermaid diagram", iconHtml: SPARKLE },
-    // Phase 2 — "thinking" (plain markdown).
-    { id: "summary", label: "Summary", iconHtml: SUMMARY_ICON },
-    { id: "action-items", label: "Action items", iconHtml: ACTION_ICON },
-    { id: "outline", label: "Outline", iconHtml: OUTLINE_ICON },
-    { id: "timeline", label: "Timeline", iconHtml: TIMELINE_ICON }
-  ];
-  var TABLE_SPEC = `Use a standard GitHub-flavored markdown pipe table \u2014 a header row, a \`|---|\` separator row, then one row per item:
-
-| Title | Status | Due |
-|---|---|---|
-| Draft press release | Todo | 2026-06-05 |
-
-In cells: escape literal pipes as \\| and use <br> instead of a newline.`;
-  function boardSpec(view) {
-    const ref = BLOCK_REFERENCES[view === "table" ? "table" : "kanban"];
-    const intro = view === "kanban" ? "Use EXACTLY this custom board block, displayed as a Kanban board (cards grouped into columns by their Status)." : 'Use EXACTLY this custom board block, displayed as a table / database view. This is NOT a plain markdown table \u2014 it is the same board block with active-view="table".';
-    const rules = ref.rules.map((r3) => `- ${r3}`).join("\n");
-    return `${intro} The app parses it \u2014 do not deviate.
-
-${ref.example}
-
-Constraints:
-${rules}`;
-  }
-  var MERMAID_SPEC = `Use a fenced code block whose language is mermaid \u2014 it renders as a live diagram:
-
-${BLOCK_REFERENCES.mermaid.example}
-
-Pick the diagram type that best fits the content (flowchart, sequenceDiagram, stateDiagram-v2, gantt, etc.).`;
-  var SUMMARY_SPEC = `Write a concise summary in plain markdown \u2014 3 to 6 bullet points (or a short paragraph if the content is already brief). Capture the key points, any decisions, and any open risks. Do not add information that is not in the source.`;
-  var ACTION_ITEMS_SPEC = `Extract the actionable tasks as a markdown task list \u2014 one checkbox per line:
-
-- [ ] Task description \u2014 owner (if stated) \u2014 due (if stated)
-
-Include only real action items implied by the content. If a task has no clear owner, append "(owner: ?)". Plain markdown only.`;
-  var OUTLINE_SPEC = `Reorganize the content into a structured markdown outline using headings and nested bullet lists that reflect its hierarchy:
-
-## Section
-- point
-  - sub-point
-
-Group related items, preserve every piece of information, and keep it plain markdown.`;
-  var TIMELINE_SPEC = `Arrange the content as a chronological timeline, earliest first, as a markdown list:
-
-- **YYYY-MM-DD** \u2014 what happened
-
-Use the dates/times present in the content. If an item has no explicit date, place it where it best fits and append "(date?)". Plain markdown only.`;
-  var FORMAT_SPECS = {
-    table: TABLE_SPEC,
-    kanban: boardSpec("kanban"),
-    "board-table": boardSpec("table"),
-    mermaid: MERMAID_SPEC,
-    summary: SUMMARY_SPEC,
-    "action-items": ACTION_ITEMS_SPEC,
-    outline: OUTLINE_SPEC,
-    timeline: TIMELINE_SPEC
-  };
-
   // src/webview/blockActions.ts
   var BLOCK_ACTIONS = [
     { id: "turn-into", label: "Turn into" },
@@ -247909,12 +248026,6 @@ Use the dates/times present in the content. If an item has no explicit date, pla
       (t4) => matches34(q3, t4.label, t4.description, ...t4.aliases ?? [])
     );
     return { actions, targets };
-  }
-  function turnIntoFlyoutItems(defs2) {
-    const targets = convertibleTargets(defs2);
-    const deterministic = new Set(targets.map((t4) => t4.id));
-    const aiItems = AI_TRANSFORMS.filter((a2) => !deterministic.has(a2.id));
-    return { targets, aiItems };
   }
 
   // src/webview/tableToBoard.ts
@@ -248104,6 +248215,67 @@ Use the dates/times present in the content. If an item has no explicit date, pla
       if (!state4.schema.nodes.table) return false;
       const text6 = (node2.textContent ?? "").trim();
       const newNode2 = state4.schema.nodeFromJSON(starterTableJson(text6));
+      if (dispatch3) tr2.replaceWith(blockPos, blockPos + node2.nodeSize, newNode2);
+      return true;
+    }).run();
+  }
+  function convertToToggle(editor, blockPos) {
+    editor.chain().focus().command(({ tr: tr2, state: state4, dispatch: dispatch3 }) => {
+      const node2 = tr2.doc.nodeAt(blockPos);
+      if (!node2) return false;
+      const toggleType = state4.schema.nodes.toggle;
+      const paraType = state4.schema.nodes.paragraph;
+      if (!toggleType || !paraType) return false;
+      let newNode2;
+      try {
+        newNode2 = toggleType.create({ summary: "Toggle" }, paraType.create(null, node2.content));
+      } catch {
+        try {
+          newNode2 = toggleType.create({ summary: "Toggle" }, paraType.create(null));
+        } catch {
+          return false;
+        }
+      }
+      if (dispatch3) tr2.replaceWith(blockPos, blockPos + node2.nodeSize, newNode2);
+      return true;
+    }).run();
+  }
+  function freshKanbanSourceWithCard(id33, cardTitle) {
+    const esc = (cardTitle || "New card").replace(/\|/g, "\\|");
+    return [
+      `<!-- board:start id="${id33}" name="" columns="Todo|Doing|Done" column-colors="gray|amber|emerald" field-types="Title=text,Status=status,id=text" hidden-fields="id" -->`,
+      ``,
+      `| Title    | Status | id |`,
+      `|----------|--------|----|`,
+      `| ${esc} | Todo   | C1 |`,
+      ``,
+      `<!-- board:end -->`
+    ].join("\n");
+  }
+  function convertToKanbanBoard(editor, blockPos) {
+    const boardId = mintBoardId(existingBoardIds(editor));
+    editor.chain().focus().command(({ tr: tr2, state: state4, dispatch: dispatch3 }) => {
+      const node2 = tr2.doc.nodeAt(blockPos);
+      if (!node2) return false;
+      const boardType = state4.schema.nodes.board;
+      if (!boardType) return false;
+      const text6 = (node2.textContent ?? "").trim();
+      const source3 = freshKanbanSourceWithCard(boardId, text6);
+      const boardNode = boardType.create({ source: source3 });
+      if (dispatch3) tr2.replaceWith(blockPos, blockPos + node2.nodeSize, boardNode);
+      return true;
+    }).run();
+  }
+  function convertToWhiteboard(editor, blockPos) {
+    editor.chain().focus().command(({ tr: tr2, state: state4, dispatch: dispatch3 }) => {
+      const node2 = tr2.doc.nodeAt(blockPos);
+      if (!node2) return false;
+      const codeType = state4.schema.nodes.codeBlock;
+      if (!codeType) return false;
+      const raw = (node2.textContent ?? "").trim();
+      const idea = raw.replace(/[[\]"`]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40) || "Idea";
+      const source3 = freshWhiteboardSource().replace("A[Idea]", `A[${idea}]`);
+      const newNode2 = codeType.create({ language: "mermaid" }, state4.schema.text(source3));
       if (dispatch3) tr2.replaceWith(blockPos, blockPos + node2.nodeSize, newNode2);
       return true;
     }).run();
@@ -248354,7 +248526,8 @@ Use the dates/times present in the content. If an item has no explicit date, pla
         type: "toggle",
         attrs: { summary: "Toggle" },
         content: [{ type: "paragraph", content: [] }]
-      }).run()
+      }).run(),
+      convert: (editor, blockPos) => convertToToggle(editor, blockPos)
     },
     {
       id: "blockquote",
@@ -248398,7 +248571,9 @@ Use the dates/times present in the content. If an item has no explicit date, pla
       iconHtml: ICO.hr,
       section: "other",
       isActive: (t4) => t4 === "horizontalRule",
-      insert: (editor, pos) => editor.chain().focus().insertContentAt(pos, { type: "horizontalRule" }).run()
+      insert: (editor, pos) => editor.chain().focus().insertContentAt(pos, { type: "horizontalRule" }).run(),
+      // Leaf node: the original block's text is dropped (a divider has no content).
+      convert: (editor, blockPos) => replaceBlockWith(editor, blockPos, "horizontalRule")
     },
     {
       id: "table",
@@ -248418,7 +248593,8 @@ Use the dates/times present in the content. If an item has no explicit date, pla
       iconHtml: ICO.board,
       section: "lists",
       aliases: ["board", "kanban", "tasks", "project", "board kanban"],
-      insert: (editor, pos) => insertBoardWith("kanban", editor, pos)
+      insert: (editor, pos) => insertBoardWith("kanban", editor, pos),
+      convert: (editor, blockPos) => convertToKanbanBoard(editor, blockPos)
     },
     {
       id: "board-table",
@@ -248437,7 +248613,8 @@ Use the dates/times present in the content. If an item has no explicit date, pla
       iconHtml: ICO.whiteboard,
       section: "media",
       aliases: ["mermaid", "diagram", "flowchart", "graph", "canvas"],
-      insert: (editor, pos) => insertWhiteboard(editor, pos)
+      insert: (editor, pos) => insertWhiteboard(editor, pos),
+      convert: (editor, blockPos) => convertToWhiteboard(editor, blockPos)
     }
   ];
   var BLOCK_SHORTCUTS = {
@@ -248477,10 +248654,8 @@ Use the dates/times present in the content. If an item has no explicit date, pla
     let context = {};
     let popover = null;
     let actionMode = false;
+    let convertMode = false;
     let activeRows = [];
-    let flyoutRows = [];
-    let flyoutIdx = 0;
-    let flyoutFocused = false;
     function isActiveItem(block4) {
       const ab = context.activeBlock;
       if (!ab || !block4.isActive) return false;
@@ -248503,71 +248678,8 @@ Use the dates/times present in the content. If an item has no explicit date, pla
     const searchEl = el2.querySelector(".block-picker-search");
     const footVerb = el2.querySelector(".bp-foot-verb");
     const footHints = el2.querySelector(".block-picker-foot-hints");
-    const flyoutEl = document.createElement("div");
-    flyoutEl.className = "block-picker-flyout";
-    flyoutEl.style.position = "fixed";
-    flyoutEl.style.display = "none";
-    const flyoutList = document.createElement("div");
-    flyoutList.className = "block-picker-list";
-    flyoutEl.appendChild(flyoutList);
-    el2.appendChild(flyoutEl);
-    function isFlyoutOpen() {
-      return flyoutEl.style.display !== "none";
-    }
     function currentSource() {
       return drillParent?.subItems ?? BLOCK_DEFS;
-    }
-    function renderFlyout() {
-      const flist = flyoutList;
-      flist.innerHTML = "";
-      flyoutRows = [];
-      const { targets } = turnIntoFlyoutItems(BLOCK_DEFS);
-      const makeFlyRow = (iconHtml, label, activate, current = false) => {
-        const row = document.createElement("div");
-        row.className = "block-picker-item";
-        if (current) row.classList.add("current");
-        row.dataset.idx = String(flyoutRows.length);
-        const check = current ? '<span class="block-picker-current-mark">\u2713</span>' : "";
-        row.innerHTML = `<span class="block-picker-icon">${iconHtml}</span><span class="block-picker-label">${label}</span>${check}`;
-        row.addEventListener("mousedown", (e3) => {
-          e3.preventDefault();
-          activate();
-        });
-        flist.appendChild(row);
-        flyoutRows.push(activate);
-      };
-      targets.forEach((t4) => makeFlyRow(t4.iconHtml, t4.label, () => convertActive(t4), isActiveItem(t4)));
-      flyoutIdx = 0;
-      updateFlyoutActive();
-    }
-    function updateFlyoutActive() {
-      const rows = flyoutList.querySelectorAll(".block-picker-item");
-      rows.forEach((row, i3) => row.classList.toggle("active", i3 === flyoutIdx));
-      const activeRow = rows[flyoutIdx];
-      if (activeRow) scrollRowIntoView(flyoutEl, activeRow);
-    }
-    let flyoutAnchorRow = null;
-    function positionFlyout() {
-      if (!flyoutAnchorRow || flyoutEl.style.display === "none") return;
-      placeFlyout(flyoutEl, el2, flyoutAnchorRow, { maxHeight: 440 });
-    }
-    const onFlyoutResize = () => positionFlyout();
-    function openFlyout(rowEl) {
-      if (isFlyoutOpen() && flyoutAnchorRow === rowEl) return;
-      flyoutAnchorRow = rowEl;
-      flyoutEl.style.display = "";
-      renderFlyout();
-      positionFlyout();
-      window.addEventListener("resize", onFlyoutResize);
-      footVerb.textContent = footerCloseVerb(true);
-    }
-    function closeFlyout() {
-      if (flyoutEl.style.display === "none") return;
-      flyoutEl.style.display = "none";
-      window.removeEventListener("resize", onFlyoutResize);
-      flyoutAnchorRow = null;
-      flyoutFocused = false;
-      footVerb.textContent = footerCloseVerb(false);
     }
     function renderList(items) {
       list3.innerHTML = "";
@@ -248614,7 +248726,15 @@ Use the dates/times present in the content. If an item has no explicit date, pla
       activeIdx = 0;
       updateActive();
       footHints.style.display = "";
-      footVerb.textContent = footerCloseVerb(!!drillParent);
+      footVerb.textContent = footerCloseVerb(!!drillParent || convertMode);
+    }
+    function deleteBlockAtPos(blockPos) {
+      editor.chain().focus().command(({ tr: tr2, dispatch: dispatch3 }) => {
+        const node2 = tr2.doc.nodeAt(blockPos);
+        if (!node2) return false;
+        if (dispatch3) tr2.delete(blockPos, blockPos + node2.nodeSize);
+        return true;
+      }).run();
     }
     function deleteActiveBlock() {
       const ab = context.activeBlock;
@@ -248622,12 +248742,7 @@ Use the dates/times present in the content. If an item has no explicit date, pla
         close3();
         return;
       }
-      editor.chain().focus().command(({ tr: tr2, dispatch: dispatch3 }) => {
-        const node2 = tr2.doc.nodeAt(ab.blockPos);
-        if (!node2) return false;
-        if (dispatch3) tr2.delete(ab.blockPos, ab.blockPos + node2.nodeSize);
-        return true;
-      }).run();
+      deleteBlockAtPos(ab.blockPos);
       close3();
     }
     function makeRow3(iconHtml, label, activate, opts = {}) {
@@ -248649,8 +248764,7 @@ Use the dates/times present in the content. If an item has no explicit date, pla
     }
     function runAction(id33) {
       if (id33 === "turn-into") {
-        const row = list3.querySelector('[data-turn-into="1"]');
-        if (row) openFlyout(row);
+        openConvertList();
         return;
       }
       if (id33 === "delete") {
@@ -248662,30 +248776,40 @@ Use the dates/times present in the content. If an item has no explicit date, pla
         return;
       }
     }
+    function openConvertList() {
+      convertMode = true;
+      drillParent = null;
+      input.placeholder = "Filter blocks\u2026";
+      input.value = "";
+      filtered = BLOCK_DEFS;
+      renderList(filtered);
+      input.focus();
+    }
+    function backToActionMenu() {
+      convertMode = false;
+      drillParent = null;
+      input.placeholder = "Search actions\u2026";
+      input.value = "";
+      renderActionMenu();
+      input.focus();
+    }
     const ACTION_ICONS = {
       "turn-into": ICO.turnInto,
       "duplicate": ICO.copy,
       "delete": ICO.trash
     };
     function renderActionMenu() {
-      closeFlyout();
       list3.innerHTML = "";
       activeRows = [];
       const { actions, targets } = searchBlockActions(input.value, BLOCK_DEFS);
       actions.forEach((a2) => {
         const isTurn = a2.id === "turn-into" && !input.value.trim();
-        const row = makeRow3(
+        makeRow3(
           ACTION_ICONS[a2.id],
           a2.label,
           () => runAction(a2.id),
           { caret: isTurn, danger: a2.id === "delete" }
         );
-        if (isTurn) {
-          row.dataset.turnInto = "1";
-          row.addEventListener("mouseenter", () => openFlyout(row));
-        } else {
-          row.addEventListener("mouseenter", () => closeFlyout());
-        }
         if (isTurn && actions.length > 1) {
           const sep2 = document.createElement("div");
           sep2.className = "block-picker-sep";
@@ -248721,7 +248845,12 @@ Use the dates/times present in the content. If an item has no explicit date, pla
         close3();
         return;
       }
-      if (target.convert) target.convert(editor, ab.blockPos);
+      if (target.convert) {
+        target.convert(editor, ab.blockPos);
+      } else if (target.insert) {
+        deleteBlockAtPos(ab.blockPos);
+        target.insert(editor, ab.blockPos);
+      }
       close3();
       setTimeout(() => {
         editor.commands.focus();
@@ -248802,7 +248931,7 @@ Use the dates/times present in the content. If an item has no explicit date, pla
       renderList(filtered);
       input.focus();
     }
-    function showInlineInput(block4, pos) {
+    function showInlineInput(block4, pos, replaceBlock = false) {
       if (!block4.inlineInput) return;
       const cfg = block4.inlineInput;
       searchEl.style.display = "none";
@@ -248828,6 +248957,7 @@ Use the dates/times present in the content. If an item has no explicit date, pla
           e3.preventDefault();
           const value2 = field.value.trim();
           if (!value2) return;
+          if (replaceBlock) deleteBlockAtPos(pos);
           cfg.submit(editor, pos, value2);
           close3();
           setTimeout(() => {
@@ -248844,15 +248974,6 @@ Use the dates/times present in the content. If an item has no explicit date, pla
       field.focus();
       setTimeout(() => field.focus(), 0);
     }
-    function isTurnIntoHighlighted() {
-      const rows = list3.querySelectorAll(".block-picker-item");
-      return rows[activeIdx]?.dataset.turnInto === "1";
-    }
-    function syncFlyoutToHighlight() {
-      const row = list3.querySelector('[data-turn-into="1"]');
-      if (isTurnIntoHighlighted() && row) openFlyout(row);
-      else closeFlyout();
-    }
     function select(block4) {
       if (block4.subItems?.length) {
         drillParent = block4;
@@ -248861,6 +248982,14 @@ Use the dates/times present in the content. If an item has no explicit date, pla
         filtered = block4.subItems;
         renderList(filtered);
         input.focus();
+        return;
+      }
+      if (convertMode) {
+        if (block4.inlineInput) {
+          showInlineInput(block4, context.activeBlock?.blockPos ?? currentPos, true);
+          return;
+        }
+        convertActive(block4);
         return;
       }
       if (block4.inlineInput) {
@@ -248875,8 +249004,7 @@ Use the dates/times present in the content. If an item has no explicit date, pla
       }, 30);
     }
     input.addEventListener("input", () => {
-      if (actionMode) {
-        closeFlyout();
+      if (actionMode && !convertMode) {
         renderActionMenu();
         return;
       }
@@ -248884,56 +249012,21 @@ Use the dates/times present in the content. If an item has no explicit date, pla
       renderList(filtered);
     });
     input.addEventListener("keydown", (e3) => {
-      if (actionMode) {
+      if (actionMode && !convertMode) {
         if (e3.key === "ArrowDown") {
           e3.preventDefault();
-          if (flyoutFocused) {
-            flyoutIdx = Math.min(flyoutIdx + 1, flyoutRows.length - 1);
-            updateFlyoutActive();
-          } else {
-            activeIdx = Math.min(activeIdx + 1, activeRows.length - 1);
-            updateActive();
-            syncFlyoutToHighlight();
-          }
+          activeIdx = Math.min(activeIdx + 1, activeRows.length - 1);
+          updateActive();
         } else if (e3.key === "ArrowUp") {
           e3.preventDefault();
-          if (flyoutFocused) {
-            flyoutIdx = Math.max(flyoutIdx - 1, 0);
-            updateFlyoutActive();
-          } else {
-            activeIdx = Math.max(activeIdx - 1, 0);
-            updateActive();
-            syncFlyoutToHighlight();
-          }
-        } else if (e3.key === "ArrowRight") {
-          const row = list3.querySelector('[data-turn-into="1"]');
-          if (!flyoutFocused && isTurnIntoHighlighted() && row) {
-            e3.preventDefault();
-            openFlyout(row);
-            flyoutFocused = true;
-            flyoutIdx = 0;
-            updateFlyoutActive();
-          }
-        } else if (e3.key === "ArrowLeft") {
-          if (flyoutFocused) {
-            e3.preventDefault();
-            flyoutFocused = false;
-            closeFlyout();
-            input.focus();
-            updateActive();
-          }
+          activeIdx = Math.max(activeIdx - 1, 0);
+          updateActive();
         } else if (e3.key === "Enter") {
           e3.preventDefault();
-          if (flyoutFocused) flyoutRows[flyoutIdx]?.();
-          else activeRows[activeIdx]?.();
+          activeRows[activeIdx]?.();
         } else if (e3.key === "Escape") {
           e3.preventDefault();
-          if (flyoutFocused) {
-            flyoutFocused = false;
-            closeFlyout();
-            input.focus();
-            updateActive();
-          } else close3();
+          close3();
         }
         return;
       }
@@ -248957,6 +249050,9 @@ Use the dates/times present in the content. If an item has no explicit date, pla
           filtered = BLOCK_DEFS;
           renderList(filtered);
           input.focus();
+        } else if (convertMode) {
+          e3.preventDefault();
+          backToActionMenu();
         } else {
           close3();
         }
@@ -248966,8 +249062,7 @@ Use the dates/times present in the content. If an item has no explicit date, pla
       el2.classList.remove("open");
       drillParent = null;
       actionMode = false;
-      flyoutFocused = false;
-      closeFlyout();
+      convertMode = false;
       context = {};
       input.value = "";
       searchEl.style.display = "";
@@ -248976,6 +249071,7 @@ Use the dates/times present in the content. If an item has no explicit date, pla
       currentPos = insertPos;
       context = ctx;
       drillParent = null;
+      convertMode = false;
       searchEl.style.display = "";
       input.value = "";
       if (ctx.activeBlock) {
@@ -250140,7 +250236,17 @@ Use the dates/times present in the content. If an item has no explicit date, pla
       mermaidBlock_default.configure({ lowlight, HTMLAttributes: { dir: "ltr" } }),
       TaskList,
       TaskItem.configure({ nested: true }),
-      TableWithRail.configure({ resizable: false }),
+      TableWithRail.configure({
+        // Interactive column resizing (prosemirror-tables columnResizing).
+        // View: null keeps OUR NodeView (TableWithRail) in charge — the plugin's
+        // own TableView would otherwise shadow it. Widths persist as colwidth
+        // cell attrs and serialize into delimiter dash counts (tableWidths.ts).
+        resizable: true,
+        cellMinWidth: 60,
+        handleWidth: 5,
+        lastColumnResizable: true,
+        View: null
+      }),
       TableRow,
       TableHeader,
       TableCell,
@@ -250226,6 +250332,7 @@ Use the dates/times present in the content. If an item has no explicit date, pla
       console.error("[md-editor-plus] callout preprocess failed", err);
       body = split2.body;
     }
+    setPendingTableWidths(scanTableDashCounts(body));
     let debounce4 = null;
     const editor = new Editor({
       element: element3,
@@ -250284,6 +250391,7 @@ Use the dates/times present in the content. If an item has no explicit date, pla
       console.error("[md-editor-plus] callout preprocess failed", err);
       next3 = split2.body;
     }
+    setPendingTableWidths(scanTableDashCounts(next3));
     const savedScroll = window.scrollY;
     const sel = _editor.state.selection;
     const savedFrom = sel.from;
@@ -250381,6 +250489,7 @@ Use the dates/times present in the content. If an item has no explicit date, pla
     } catch {
       body = split2.body;
     }
+    setPendingTableWidths(scanTableDashCounts(body));
     return new Editor({
       element: element3,
       editable: false,
@@ -251676,6 +251785,103 @@ ${autoPrintScript}
     return _workspaceName;
   }
 
+  // src/webview/blockFormatReference.ts
+  var BLOCK_IDS = ["kanban", "table", "mermaid", "callout", "toggle"];
+  function boardExample(view) {
+    const av = view === "table" ? ` active-view="table"` : "";
+    return [
+      `<!-- board:start id="b1" name="My Board" columns="Todo|Doing|Done" column-colors="blue|amber|emerald" field-types="Title=text,Status=status,Owner=person,Due=date,id=text" hidden-fields="id"${av} -->`,
+      ``,
+      `| Title | Status | Owner | Due | id |`,
+      `|---|---|---|---|---|`,
+      `| Write the spec | Doing | @maya | 2026-06-10 | C1 |`,
+      `| Review the PR | Todo |  |  | C2 |`,
+      ``,
+      `<!-- board:body id="C1" -->`,
+      ``,
+      `Longer notes for this card live here.`,
+      ``,
+      `<!-- board:end -->`
+    ].join("\n");
+  }
+  var BOARD_RULES = [
+    "The whole region from `<!-- board:start \u2026 -->` through `<!-- board:end -->` is ONE block \u2014 do not split it.",
+    "Start-marker attributes, in order: `id`, `name`, `columns` (pipe-separated), `column-colors`, `field-types`, `field-options`, `hidden-fields`, optional `active-view`.",
+    "Allowed colour tokens (for `column-colors` and `field-options`): gray, blue, amber, emerald, red, purple, orange, teal, indigo, pink.",
+    "Allowed `field-types` values: text, status, date, person, tags. Keep the hidden `id` field.",
+    "The built-in `Status` field's options are the `columns` (coloured by `column-colors`); each card's Status MUST be exactly one of them.",
+    'You can have MORE THAN ONE `status` column. Extra `status` columns and any `tags` column carry their own options + colours via `field-options="Field=opt:colour|opt:colour;Other=a:blue|b:red"` (fields split by `;`, options by `|`, name and colour by `:`).',
+    "A `tags` cell is a comma-separated list of tag names (a card can have several); each tag is its own coloured chip. A tag not listed in `field-options` is auto-coloured. Names in `columns`/`field-options`/tags must not contain `| ; : =` (tag names also drop `,`).",
+    'Group the Table view by any status or tag column with a view marker placed right after `board:start`: `<!-- board:view name="table" group="FieldName" -->`.',
+    'Every card needs a unique `id` (C1, C2, \u2026) used in BOTH its table row and its `<!-- board:body id="\u2026" -->` block.',
+    "The board's own `id` must be unique within the file \u2014 do NOT copy `b1` from the example. Use a short random id like `b-k4x9`. Two boards sharing an id make the app treat them as the same board.",
+    "Dates as `YYYY-MM-DD`; people as `@name`. In table cells, escape pipes as `\\|` and use `<br>` for line breaks."
+  ];
+  var BLOCK_REFERENCES = {
+    kanban: {
+      id: "kanban",
+      title: "Kanban board",
+      whatItIs: "A board shown as columns of cards, grouped by a Status field. A custom block the app parses \u2014 the exact format below is required.",
+      example: boardExample("kanban"),
+      rules: BOARD_RULES
+    },
+    table: {
+      id: "table",
+      title: "Table board (database view)",
+      whatItIs: 'The SAME custom board block as Kanban, shown as a table/database grid (typed fields as columns). It is NOT a plain markdown table \u2014 it is the board block with `active-view="table"`.',
+      example: boardExample("table"),
+      rules: BOARD_RULES
+    },
+    mermaid: {
+      id: "mermaid",
+      title: "Mermaid diagram",
+      whatItIs: "A fenced code block with the `mermaid` language; renders as a live diagram.",
+      example: [
+        "```mermaid",
+        "flowchart TB",
+        "    A[Start] --> B[Process]",
+        "    B --> C[End]",
+        "```"
+      ].join("\n"),
+      rules: [
+        "Use a fenced code block whose info string is exactly `mermaid`.",
+        "Use standard Mermaid syntax; pick the diagram type that fits (flowchart, sequenceDiagram, stateDiagram-v2, gantt, \u2026).",
+        "Do NOT hand-author position/style sidecar comments (`%% mb-positions: \u2026`); the app's visual editor manages those automatically."
+      ]
+    },
+    callout: {
+      id: "callout",
+      title: "Callout",
+      whatItIs: "A GFM-style admonition with a coloured background and an icon.",
+      example: [
+        "> [!NOTE] \u{1F4A1}",
+        "> Body text here. Continuation lines are also prefixed with `>`."
+      ].join("\n"),
+      rules: [
+        "First line: `> [!TYPE] <emoji>` \u2014 TYPE uppercase; the emoji is optional (a sensible default is used per type).",
+        "Allowed TYPEs: NOTE, TIP, IMPORTANT, WARNING, CAUTION, INFO.",
+        "Every body line is prefixed with `> ` (like a blockquote)."
+      ]
+    },
+    toggle: {
+      id: "toggle",
+      title: "Toggle (collapsible)",
+      whatItIs: "A collapsible section using HTML `<details>` / `<summary>`.",
+      example: [
+        "<details>",
+        "<summary>Click to expand</summary>",
+        "",
+        "Hidden content goes here \u2014 any markdown is allowed.",
+        "",
+        "</details>"
+      ].join("\n"),
+      rules: [
+        "Use `<details>` with a `<summary>` as the first child (the clickable label).",
+        "Leave a blank line after `</summary>` and before `</details>` so the inner markdown parses."
+      ]
+    }
+  };
+
   // src/webview/skillBuilder.ts
   var FOLDER_NAME = "md-editor-blocks";
   var DESCRIPTION = "Use when creating or editing rich blocks in Markdown (.md/.mdx) files for the MD Editor Plus editor \u2014 Kanban or Table/database boards (project boards, task/sprint boards), Mermaid diagrams (flowcharts, graphs), callouts (note / tip / warning / important / caution admonitions), and collapsible toggles (expandable <details> sections). Provides the exact on-disk block grammar so they render in the editor instead of showing as raw text.";
@@ -252050,6 +252256,7 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
     const readOnlyPill = document.getElementById("readonly-pill");
     const readOnlyRow = document.getElementById("readonly-row");
     const sourceWordWrapToggle = document.getElementById("source-word-wrap-toggle");
+    const refreshBtn = document.getElementById("refresh-btn");
     const roController = createReadOnlyController({
       root: document.documentElement,
       toggleSwitch: readOnlyToggle,
@@ -252139,8 +252346,12 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
       applySourceWordWrap(next3);
       vscode.postMessage({ type: "saveSourceWordWrap", value: next3 });
     });
-    document.getElementById("diff-btn")?.addEventListener("click", () => {
-      vscode.postMessage({ type: "openFullDiff", markdown: getCurrentMarkdown() });
+    refreshBtn?.addEventListener("click", () => {
+      vscode.postMessage({ type: "refresh" });
+    });
+    const fullwidthBtn = document.getElementById("fullwidth-btn");
+    fullwidthBtn?.addEventListener("click", () => {
+      setWidth2(widthMode === "full" ? "normal" : "full");
     });
     const conflictBanner = document.createElement("div");
     conflictBanner.id = "conflict-banner";
@@ -252320,6 +252531,8 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
       sourceEl.classList.add(`width-${mode}`);
       fullWidthTog.classList.toggle("on", mode === "full");
       fullWidthTog.setAttribute("aria-checked", String(mode === "full"));
+      fullwidthBtn?.classList.toggle("active", mode === "full");
+      fullwidthBtn?.setAttribute("aria-pressed", String(mode === "full"));
       sliderRow.classList.toggle("disabled", mode === "full");
       pageWidthRow.classList.toggle("disabled", mode === "full");
       refreshDefaultsButtons();
@@ -252559,6 +252772,10 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
       panel2.querySelectorAll(".settings-action").forEach((el2) => {
         if (el2.hasAttribute("data-submenu")) return;
         el2.addEventListener("mouseenter", scheduleSubmenuClose);
+      });
+      panel2.querySelector(".act-refresh")?.addEventListener("click", () => {
+        vscode.postMessage({ type: "refresh" });
+        closeAllActionsPanels();
       });
       panel2.querySelector(".act-copy")?.addEventListener("click", () => {
         vscode.postMessage({ type: "copyContent" });
@@ -252960,6 +253177,12 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
         currentMarkdown = md2;
         rememberSent(md2);
         return md2;
+      },
+      // Headless test/debug hooks: the live rich editor and the same
+      // external-content refresh path the host's sync messages use.
+      getEditor: () => editorReady ? getEditor() : null,
+      applyContent: (md2) => {
+        if (editorReady) updateContent(md2);
       }
     };
     vscode.postMessage({ type: "ready" });

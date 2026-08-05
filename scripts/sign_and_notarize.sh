@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME="MD_View-Edit_macOS"
+APP_NAME="MD-design-macOS"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 VERSION="$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")"

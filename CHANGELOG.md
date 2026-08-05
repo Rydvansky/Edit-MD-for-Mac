@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 This project follows semantic versioning: `MAJOR.MINOR.PATCH`.
 
+## [2.0.5] - 2026-08-05
+
+### Changed
+
+- Renamed the app to MD-design-macOS (window titles now show "<file> — MD Design"; bundle, executable, and dist artifacts use the new name).
+
+## [2.0.4] - 2026-08-05
+
+### Added
+
+- Resizable table columns in preview: drag any column border to resize (thin blue handle, 60px minimum). Widths persist in the Markdown file itself as proportional dash counts in the table's separator row (`| --- | ------------ |`, ~1 dash ≈ 20px) — still 100% valid Markdown for any other renderer — and are restored on reopen. Files with uniform `---` separators never gain width attributes, and hand-edited dash counts round-trip byte-identical when unedited.
+
+## [2.0.3] - 2026-08-05
+
+### Added
+
+- "Turn into" in the block-handle menu now opens the full block picker (same sections, filter box, and drill-down as the "+" menu); clicking a block converts the current block instead of inserting a new one. Added conversion targets: Toggle, Divider, Board: Kanban, and Whiteboard (text blocks seed the first kanban card / mermaid node label so content isn't dropped).
+- Toggle titles are now inline-editable in preview: click the title text to edit, Enter/blur commits, Escape cancels; the disclosure arrow still expands/collapses independently.
+- Tables now show Notion-style "+" append bands: hovering just past the bottom edge reveals a full-width band that appends a row, and hovering just past the right edge reveals a full-height band that appends a column.
+
 ## [2.0.2] - 2026-08-05
 
 ### Changed

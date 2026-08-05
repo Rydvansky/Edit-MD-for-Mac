@@ -3,14 +3,14 @@
 import PackageDescription
 
 let package = Package(
-    name: "MDViewEditMacOS",
+    name: "MDDesignMacOS",
     platforms: [
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "MDViewEditMacOS", targets: ["MDViewEditMacOS"])
+        .executable(name: "MDDesignMacOS", targets: ["MDDesignMacOS"])
     ],
     targets: [
-        .executableTarget(name: "MDViewEditMacOS")
+        .executableTarget(name: "MDDesignMacOS")
     ]
 )

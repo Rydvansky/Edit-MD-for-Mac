@@ -18,7 +18,7 @@ swift build
 Run:
 
 ```bash
-swift run MDViewEditMacOS
+swift run MDDesignMacOS
 ```
 
 Package a release build:

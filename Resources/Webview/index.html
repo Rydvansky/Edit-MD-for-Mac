@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MD View-Edit</title>
+  <title>MD Design</title>
   <script>
     // Shim the VS Code webview API so the bundled md-editor-plus webview runs
     // inside WKWebView. Webview -> native goes through the 'mdEditor' script
@@ -38,8 +38,8 @@
     <span class="save-indicator" id="save-indicator" aria-live="polite"></span>
     <button class="readonly-pill" id="readonly-pill" hidden data-tip="Read-only — click to enable editing"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M208,76H180V56A52,52,0,0,0,76,56V76H48A20,20,0,0,0,28,96V208a20,20,0,0,0,20,20H208a20,20,0,0,0,20-20V96A20,20,0,0,0,208,76ZM100,56a28,28,0,1,1,56,0V76ZM204,204H52V100H204Z"/></svg><span>Read only</span></button>
     <span class="toolbar-spacer"></span>
-    <button class="toolbar-icon" id="diff-btn" data-tip="View changes (diff)"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M240.49,136.49l-32,32a12,12,0,0,1-17-17L203,140H53l11.52,11.51a12,12,0,0,1-17,17l-32-32a12,12,0,0,1,0-17l32-32a12,12,0,1,1,17,17L53,116H203a12,12,0,0,1,17-17l32,32A12,12,0,0,1,240.49,136.49Z"/></svg></button>
-    <button class="toolbar-icon" id="settings-btn" data-tip="Display settings"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" viewBox="0 0 256 256"><circle cx="128" cy="128" r="38"/><line x1="128" y1="36" x2="128" y2="66"/><line x1="128" y1="190" x2="128" y2="220"/><line x1="36" y1="128" x2="66" y2="128"/><line x1="190" y1="128" x2="220" y2="128"/><line x1="63" y1="63" x2="84.2" y2="84.2"/><line x1="171.8" y1="171.8" x2="193" y2="193"/><line x1="193" y1="63" x2="171.8" y2="84.2"/><line x1="84.2" y1="171.8" x2="63" y2="193"/></svg></button>
+    <button class="toolbar-icon" id="fullwidth-btn" data-tip="Full width — use the entire window width" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M240.49,136.49l-32,32a12,12,0,0,1-17-17L203,140H53l11.52,11.51a12,12,0,0,1-17,17l-32-32a12,12,0,0,1,0-17l32-32a12,12,0,1,1,17,17L53,116H203a12,12,0,0,1,17-17l32,32A12,12,0,0,1,240.49,136.49Z"/></svg></button>
+    <button class="toolbar-icon" id="settings-btn" data-tip="Display settings"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path fill-rule="evenodd" d="M128 196a68 68 0 1 0 0-136 68 68 0 0 0 0 136Zm0-34a34 34 0 1 0 0-68 34 34 0 0 0 0 68Z"/><rect x="114" y="14" width="28" height="54" rx="9"/><rect x="114" y="188" width="28" height="54" rx="9"/><rect x="14" y="114" width="54" height="28" rx="9"/><rect x="188" y="114" width="54" height="28" rx="9"/><rect x="114" y="14" width="28" height="54" rx="9" transform="rotate(45 128 128)"/><rect x="114" y="188" width="28" height="54" rx="9" transform="rotate(45 128 128)"/><rect x="14" y="114" width="54" height="28" rx="9" transform="rotate(45 128 128)"/><rect x="188" y="114" width="54" height="28" rx="9" transform="rotate(45 128 128)"/></svg></button>
     <button class="toolbar-icon" id="actions-btn" data-tip="More actions"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M156,128a28,28,0,1,1-28-28A28,28,0,0,1,156,128ZM48,100a12,12,0,1,0,12,12A12,12,0,0,0,48,100Zm160,0a12,12,0,1,0,12,12A12,12,0,0,0,208,100Z"/></svg></button>
   </div>
   <div class="settings-panel hidden" id="settings-panel">
