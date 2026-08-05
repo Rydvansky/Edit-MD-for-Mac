@@ -45,14 +45,6 @@ final class DocumentStore: ObservableObject {
         scheduleRender()
     }
 
-    /// Reload the current file from disk (webview "refresh" action).
-    func reloadFromDisk() {
-        guard let fileURL else { return }
-        Task { @MainActor in
-            await open(fileURL)
-        }
-    }
-
     var currentFileName: String {
         displayNameOverride ?? fileURL?.lastPathComponent ?? "Untitled Markdown"
     }

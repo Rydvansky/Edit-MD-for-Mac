@@ -4,7 +4,18 @@ All notable changes to this project will be documented in this file.
 
 This project follows semantic versioning: `MAJOR.MINOR.PATCH`.
 
-## [1.1.0] - 2026-08-05
+## [2.0.2] - 2026-08-05
+
+### Changed
+
+- Removed the in-window header panel. Open (⌘O) and Save (⌘S) remain in the File menu; font-size commands (⌘+/⌘−) stay in the menu; preview display settings live in the preview's own toolbar/settings panel.
+- Appearance (theme) switching moved to the menu bar: View → Appearance → System / Light / Dark (checkmark on the active mode; applies to all windows).
+- Markdown Guide moved to the Help menu (⌘/) and opens as a sheet in the focused window.
+- Window title now shows "<file name> — MD View-Edit", with the standard edited-state dot and a proxy icon for saved files.
+- The status bar now shows the full file path (middle-truncated) plus size, character count, encoding, and an Edited marker.
+- Removed the webview toolbar logo and the "✨ Using AI" menu (bubble-menu ⋯ entry, AI transform panel, and the block-picker flyout AI section). AI features were inert in this host.
+
+## [2.0.1] - 2026-08-05
 
 ### Changed
 

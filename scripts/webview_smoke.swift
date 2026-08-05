@@ -112,7 +112,7 @@ Thread.sleep(forTimeInterval: 2.5)
 
 var mounted: Any?
 semaphore = false
-webView.evaluateJavaScript("({prosemirror: !!document.querySelector('#editor .ProseMirror'), bridge: !!window.__mdEditorBridge, bodyChars: document.body.innerText.length})") { result, error in
+webView.evaluateJavaScript("({prosemirror: !!document.querySelector('#editor .ProseMirror'), bridge: !!window.__mdEditorBridge, bodyChars: document.body.innerText.length, logo: !!document.querySelector('.toolbar-logo'), aiPanel: !!document.getElementById('bm-ai'), aiMenuEntry: !!Array.from(document.querySelectorAll('[data-menu]')).find(b => b.dataset.menu === 'turn-into-ai'), usingAiText: document.body.innerHTML.includes('Using AI')})") { result, error in
     if let error { NSLog("[smoke] mount check error: %@", error.localizedDescription) }
     mounted = result
     semaphore = true
@@ -130,6 +130,14 @@ guard (info["bridge"] as? Bool) == true || (info["bridge"] as? Int) == 1 else {
     NSLog("[smoke] FAIL: __mdEditorBridge hook missing")
     exit(1)
 }
+
+// Removals check: logo span and the "✨ Using AI" menu/panel must be gone.
+func isTrue(_ v: Any?) -> Bool { (v as? Bool) == true || (v as? Int) == 1 }
+if isTrue(info["logo"]) { NSLog("[smoke] FAIL: .toolbar-logo still present"); exit(1) }
+if isTrue(info["aiPanel"]) { NSLog("[smoke] FAIL: #bm-ai panel still present"); exit(1) }
+if isTrue(info["aiMenuEntry"]) { NSLog("[smoke] FAIL: turn-into-ai menu entry still present"); exit(1) }
+if isTrue(info["usingAiText"]) { NSLog("[smoke] FAIL: 'Using AI' text still present in DOM"); exit(1) }
+NSLog("[smoke] removals verified: no logo, no AI menu/panel")
 
 // Round-trip: ask the webview for its authoritative markdown.
 var roundTrip: Any?

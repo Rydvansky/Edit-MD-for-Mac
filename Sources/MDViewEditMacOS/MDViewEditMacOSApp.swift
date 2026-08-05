@@ -48,6 +48,7 @@ struct DocumentWindowView: View {
 
 struct DocumentCommands: Commands {
     @FocusedValue(\.documentStore) private var store
+    @FocusedValue(\.markdownHelpVisible) private var markdownHelpVisible
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -80,6 +81,40 @@ struct DocumentCommands: Commands {
             .keyboardShortcut("-", modifiers: .command)
             .disabled(store == nil)
         }
+
+        CommandGroup(after: .toolbar) {
+            Menu("Appearance") {
+                AppearanceModeMenuItems()
+            }
+        }
+
+        CommandGroup(replacing: .help) {
+            Button("Markdown Guide") {
+                markdownHelpVisible?.wrappedValue = true
+            }
+            .keyboardShortcut("/", modifiers: .command)
+        }
+    }
+}
+
+/// Radio-style System / Light / Dark items. Writes the same `appearanceMode`
+/// UserDefaults key the windows read via @AppStorage, so every window's
+/// AppearanceBridge / preferredColorScheme updates immediately.
+private struct AppearanceModeMenuItems: View {
+    @AppStorage("appearanceMode") private var appearanceModeRaw = AppearanceMode.system.rawValue
+
+    var body: some View {
+        ForEach(AppearanceMode.allCases) { mode in
+            Button {
+                appearanceModeRaw = mode.rawValue
+            } label: {
+                if appearanceModeRaw == mode.rawValue {
+                    Label(mode.title, systemImage: "checkmark")
+                } else {
+                    Text(mode.title)
+                }
+            }
+        }
     }
 }
 
@@ -87,10 +122,19 @@ struct FocusedDocumentStoreKey: FocusedValueKey {
     typealias Value = DocumentStore
 }
 
+struct MarkdownHelpVisibleKey: FocusedValueKey {
+    typealias Value = Binding<Bool>
+}
+
 extension FocusedValues {
     var documentStore: DocumentStore? {
         get { self[FocusedDocumentStoreKey.self] }
         set { self[FocusedDocumentStoreKey.self] = newValue }
+    }
+
+    var markdownHelpVisible: Binding<Bool>? {
+        get { self[MarkdownHelpVisibleKey.self] }
+        set { self[MarkdownHelpVisibleKey.self] = newValue }
     }
 }
 
@@ -225,7 +269,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = url.lastPathComponent
+        window.title = "\(url.lastPathComponent) — MD View-Edit"
         window.isReleasedWhenClosed = false
         window.center()
         window.contentView = NSHostingView(rootView: view)

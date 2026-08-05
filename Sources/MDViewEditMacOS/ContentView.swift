@@ -30,16 +30,6 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HeaderView(
-                appearanceModeRaw: $appearanceModeRaw,
-                editorModeRaw: $editorModeRaw,
-                showNavigationPane: $showNavigationPane,
-                showingMarkdownHelp: $showingMarkdownHelp,
-                onSelectMode: setEditorMode(_:)
-            )
-
-            Divider()
-
             workspace
 
             Divider()
@@ -56,8 +46,13 @@ struct ContentView: View {
             }
         }
         .background(AppearanceBridge(mode: appearanceMode))
+        .background(WindowTitleSync(store: store))
+        .focusedSceneValue(\.markdownHelpVisible, $showingMarkdownHelp)
         .onAppear {
             webBridge.attach(store: store)
+            // The header's mode toggle is gone (the webview's own toolbar
+            // covers Preview/Code), so always land in rich preview mode.
+            editorModeRaw = EditorMode.preview.rawValue
         }
         .onChange(of: store.text) { newText in
             webBridge.storeTextDidChange(newText, reload: false)
@@ -123,24 +118,6 @@ struct ContentView: View {
                 .opacity(isCode ? 0 : 1)
                 .zIndex(isCode ? 0 : 1)
                 .allowsHitTesting(!isCode)
-        }
-    }
-
-    private func setEditorMode(_ mode: EditorMode) {
-        guard mode != editorMode else { return }
-
-        if editorMode == .preview && mode == .code {
-            // Flush the web editor's latest markdown into the store first so
-            // the code editor never shows stale text.
-            Task { @MainActor in
-                await webBridge.flushIntoStore()
-                editorModeRaw = mode.rawValue
-            }
-        } else {
-            editorModeRaw = mode.rawValue
-            if mode == .preview {
-                webBridge.pushStoreTextNow()
-            }
         }
     }
 
@@ -216,188 +193,29 @@ private struct AppearanceBridge: NSViewRepresentable {
     }
 }
 
-private struct HeaderView: View {
-    @EnvironmentObject private var store: DocumentStore
-    @Binding var appearanceModeRaw: String
-    @Binding var editorModeRaw: String
-    @Binding var showNavigationPane: Bool
-    @Binding var showingMarkdownHelp: Bool
-    let onSelectMode: (EditorMode) -> Void
+/// Keeps the NSWindow chrome in sync with the document: title shows
+/// "<file> — MD View-Edit", the standard edited-state dot appears via
+/// isDocumentEdited, and representedURL gives the native proxy icon.
+private struct WindowTitleSync: NSViewRepresentable {
+    let store: DocumentStore
 
-    private var editorMode: EditorMode {
-        EditorMode(rawValue: editorModeRaw) ?? .preview
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        apply(from: view)
+        return view
     }
 
-    var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 8) {
-                    Text(store.currentFileName)
-                        .font(.headline)
-                        .lineLimit(1)
+    func updateNSView(_ view: NSView, context: Context) {
+        apply(from: view)
+    }
 
-                    if store.isDirty {
-                        Text("Edited")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Text(store.fileURL?.path ?? (store.displayNameOverride == nil ? "Open or drop a local Markdown file" : "Bundled DEMO file"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 12)
-
-            Button {
-                store.openPanel()
-            } label: {
-                Label("Open", systemImage: "folder")
-            }
-
-            Button {
-                store.save()
-            } label: {
-                Label("Save", systemImage: "square.and.arrow.down")
-            }
-            .disabled(!store.canSave)
-
-            HeaderSeparator()
-
-            HStack(spacing: 4) {
-                PaneToggleButton(
-                    title: "Navigation",
-                    icon: "list.bullet.indent",
-                    isOn: showNavigationPane,
-                    action: { showNavigationPane.toggle() }
-                )
-
-                ModeToggleButton(
-                    title: "Code",
-                    icon: "chevron.left.forwardslash.chevron.right",
-                    isOn: editorMode == .code,
-                    action: { onSelectMode(.code) }
-                )
-
-                ModeToggleButton(
-                    title: "Preview",
-                    icon: "doc.richtext",
-                    isOn: editorMode == .preview,
-                    action: { onSelectMode(.preview) }
-                )
-            }
-
-            HeaderSeparator()
-
-            HStack(spacing: 4) {
-                Button {
-                    store.adjustFont(by: -1)
-                } label: {
-                    Image(systemName: "textformat.size.smaller")
-                }
-                .help("Decrease font size (Code mode)")
-
-                Text("\(Int(store.fontSize))")
-                    .font(.caption.monospacedDigit())
-                    .frame(width: 26)
-                    .foregroundStyle(.secondary)
-
-                Button {
-                    store.adjustFont(by: 1)
-                } label: {
-                    Image(systemName: "textformat.size.larger")
-                }
-                .help("Increase font size (Code mode)")
-            }
-            .buttonStyle(.bordered)
-
-            HeaderSeparator()
-
-            AppearanceButtonGroup(selection: $appearanceModeRaw)
-
-            HeaderSeparator()
-
-            Button {
-                showingMarkdownHelp = true
-            } label: {
-                Image(systemName: "keyboard.badge.ellipsis")
-                    .imageScale(.large)
-            }
-            .help("Markdown formatting guide")
+    private func apply(from view: NSView) {
+        DispatchQueue.main.async {
+            guard let window = view.window else { return }
+            window.title = "\(store.currentFileName) — MD View-Edit"
+            window.isDocumentEdited = store.isDirty
+            window.representedURL = store.fileURL
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-    }
-}
-
-private struct PaneToggleButton: View {
-    let title: String
-    let icon: String
-    let isOn: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Label(title, systemImage: icon)
-                .labelStyle(.titleAndIcon)
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .tint(isOn ? Color.accentColor : Color.secondary)
-        .help(title)
-    }
-}
-
-private struct ModeToggleButton: View {
-    let title: String
-    let icon: String
-    let isOn: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Label(title, systemImage: icon)
-                .labelStyle(.titleAndIcon)
-        }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.small)
-        .tint(isOn ? Color.accentColor : Color.secondary.opacity(0.6))
-        .help(title)
-    }
-}
-
-private struct AppearanceButtonGroup: View {
-    @Binding var selection: String
-
-    var body: some View {
-        HStack(spacing: 4) {
-            appearanceButton(mode: .system, icon: "circle.lefthalf.filled")
-            appearanceButton(mode: .light, icon: "sun.max")
-            appearanceButton(mode: .dark, icon: "moon")
-        }
-    }
-
-    private func appearanceButton(mode: AppearanceMode, icon: String) -> some View {
-        Button {
-            selection = mode.rawValue
-        } label: {
-            Image(systemName: icon)
-                .frame(width: 18, height: 18)
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .tint(selection == mode.rawValue ? Color.accentColor : Color.secondary)
-        .help(mode.title)
-    }
-}
-
-private struct HeaderSeparator: View {
-    var body: some View {
-        Rectangle()
-            .fill(Color.primary.opacity(0.12))
-            .frame(width: 1, height: 22)
     }
 }
 
@@ -485,17 +303,32 @@ private struct PaneTitle: View {
 private struct StatusBar: View {
     @EnvironmentObject private var store: DocumentStore
 
+    private var pathText: String {
+        if let path = store.fileURL?.path { return path }
+        if store.displayNameOverride != nil { return "markdown_demo.md (bundled demo)" }
+        return "No file open"
+    }
+
     var body: some View {
         HStack(spacing: 10) {
             if store.isLoading {
                 ProgressView()
                     .controlSize(.small)
                 Text("Loading")
-            } else {
-                Text(store.fileSizeDescription.isEmpty ? "Ready" : store.fileSizeDescription)
             }
 
-            Spacer()
+            Text(pathText)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if store.isDirty {
+                Text("Edited")
+            }
+
+            if !store.fileSizeDescription.isEmpty {
+                Text(store.fileSizeDescription)
+            }
 
             Text("\(store.text.count) characters")
             Text("UTF-8")

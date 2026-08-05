@@ -302,9 +302,6 @@ final class WebEditorBridge: NSObject, ObservableObject {
                 UserDefaults.standard.set(value, forKey: "mdplus.structureMapVisible")
             }
 
-        case "refresh":
-            store?.reloadFromDisk()
-
         case "copyContent":
             copyToPasteboard(store?.text ?? "")
 

@@ -171195,10 +171195,6 @@ body {
     transform: none;
     max-width: 40vw;
   }
-
-  /* Hide the dedicated refresh button \u2014 the same action is in the
-     three-dots menu (actions-panel-dots). */
-  #toolbar #refresh-btn { display: none; }
 }
 
 /* Segmented control \u2014 macOS style */
@@ -246258,419 +246254,6 @@ ${content}
     }
   });
 
-  // src/webview/blockFormatReference.ts
-  var BLOCK_IDS = ["kanban", "table", "mermaid", "callout", "toggle"];
-  function boardExample(view) {
-    const av = view === "table" ? ` active-view="table"` : "";
-    return [
-      `<!-- board:start id="b1" name="My Board" columns="Todo|Doing|Done" column-colors="blue|amber|emerald" field-types="Title=text,Status=status,Owner=person,Due=date,id=text" hidden-fields="id"${av} -->`,
-      ``,
-      `| Title | Status | Owner | Due | id |`,
-      `|---|---|---|---|---|`,
-      `| Write the spec | Doing | @maya | 2026-06-10 | C1 |`,
-      `| Review the PR | Todo |  |  | C2 |`,
-      ``,
-      `<!-- board:body id="C1" -->`,
-      ``,
-      `Longer notes for this card live here.`,
-      ``,
-      `<!-- board:end -->`
-    ].join("\n");
-  }
-  var BOARD_RULES = [
-    "The whole region from `<!-- board:start \u2026 -->` through `<!-- board:end -->` is ONE block \u2014 do not split it.",
-    "Start-marker attributes, in order: `id`, `name`, `columns` (pipe-separated), `column-colors`, `field-types`, `field-options`, `hidden-fields`, optional `active-view`.",
-    "Allowed colour tokens (for `column-colors` and `field-options`): gray, blue, amber, emerald, red, purple, orange, teal, indigo, pink.",
-    "Allowed `field-types` values: text, status, date, person, tags. Keep the hidden `id` field.",
-    "The built-in `Status` field's options are the `columns` (coloured by `column-colors`); each card's Status MUST be exactly one of them.",
-    'You can have MORE THAN ONE `status` column. Extra `status` columns and any `tags` column carry their own options + colours via `field-options="Field=opt:colour|opt:colour;Other=a:blue|b:red"` (fields split by `;`, options by `|`, name and colour by `:`).',
-    "A `tags` cell is a comma-separated list of tag names (a card can have several); each tag is its own coloured chip. A tag not listed in `field-options` is auto-coloured. Names in `columns`/`field-options`/tags must not contain `| ; : =` (tag names also drop `,`).",
-    'Group the Table view by any status or tag column with a view marker placed right after `board:start`: `<!-- board:view name="table" group="FieldName" -->`.',
-    'Every card needs a unique `id` (C1, C2, \u2026) used in BOTH its table row and its `<!-- board:body id="\u2026" -->` block.',
-    "The board's own `id` must be unique within the file \u2014 do NOT copy `b1` from the example. Use a short random id like `b-k4x9`. Two boards sharing an id make the app treat them as the same board.",
-    "Dates as `YYYY-MM-DD`; people as `@name`. In table cells, escape pipes as `\\|` and use `<br>` for line breaks."
-  ];
-  var BLOCK_REFERENCES = {
-    kanban: {
-      id: "kanban",
-      title: "Kanban board",
-      whatItIs: "A board shown as columns of cards, grouped by a Status field. A custom block the app parses \u2014 the exact format below is required.",
-      example: boardExample("kanban"),
-      rules: BOARD_RULES
-    },
-    table: {
-      id: "table",
-      title: "Table board (database view)",
-      whatItIs: 'The SAME custom board block as Kanban, shown as a table/database grid (typed fields as columns). It is NOT a plain markdown table \u2014 it is the board block with `active-view="table"`.',
-      example: boardExample("table"),
-      rules: BOARD_RULES
-    },
-    mermaid: {
-      id: "mermaid",
-      title: "Mermaid diagram",
-      whatItIs: "A fenced code block with the `mermaid` language; renders as a live diagram.",
-      example: [
-        "```mermaid",
-        "flowchart TB",
-        "    A[Start] --> B[Process]",
-        "    B --> C[End]",
-        "```"
-      ].join("\n"),
-      rules: [
-        "Use a fenced code block whose info string is exactly `mermaid`.",
-        "Use standard Mermaid syntax; pick the diagram type that fits (flowchart, sequenceDiagram, stateDiagram-v2, gantt, \u2026).",
-        "Do NOT hand-author position/style sidecar comments (`%% mb-positions: \u2026`); the app's visual editor manages those automatically."
-      ]
-    },
-    callout: {
-      id: "callout",
-      title: "Callout",
-      whatItIs: "A GFM-style admonition with a coloured background and an icon.",
-      example: [
-        "> [!NOTE] \u{1F4A1}",
-        "> Body text here. Continuation lines are also prefixed with `>`."
-      ].join("\n"),
-      rules: [
-        "First line: `> [!TYPE] <emoji>` \u2014 TYPE uppercase; the emoji is optional (a sensible default is used per type).",
-        "Allowed TYPEs: NOTE, TIP, IMPORTANT, WARNING, CAUTION, INFO.",
-        "Every body line is prefixed with `> ` (like a blockquote)."
-      ]
-    },
-    toggle: {
-      id: "toggle",
-      title: "Toggle (collapsible)",
-      whatItIs: "A collapsible section using HTML `<details>` / `<summary>`.",
-      example: [
-        "<details>",
-        "<summary>Click to expand</summary>",
-        "",
-        "Hidden content goes here \u2014 any markdown is allowed.",
-        "",
-        "</details>"
-      ].join("\n"),
-      rules: [
-        "Use `<details>` with a `<summary>` as the first child (the clickable label).",
-        "Leave a blank line after `</summary>` and before `</details>` so the inner markdown parses."
-      ]
-    }
-  };
-
-  // src/webview/aiTransforms.ts
-  var SPARKLE = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M128 24 L150 106 L232 128 L150 150 L128 232 L106 150 L24 128 L106 106 Z"/></svg>';
-  var ASK_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M128 32C70.6 32 24 72.2 24 122c0 21.7 8.8 41.5 23.4 57L36 207a12 12 0 0 0 13.7 16.6L92 213a116 116 0 0 0 36 6c57.4 0 104-40.2 104-90S185.4 32 128 32Zm-40 102a14 14 0 1 1 14-14 14 14 0 0 1-14 14Zm40 0a14 14 0 1 1 14-14 14 14 0 0 1-14 14Zm40 0a14 14 0 1 1 14-14 14 14 0 0 1-14 14Z"/></svg>';
-  var TABLE_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M216 40H40a16 16 0 0 0-16 16v144a16 16 0 0 0 16 16h176a16 16 0 0 0 16-16V56a16 16 0 0 0-16-16ZM40 56h64v40H40Zm80 0h96v40h-96ZM40 112h64v40H40Zm0 88v-32h64v32Zm80 0v-32h96v32Zm96-48h-96v-40h96Z"/></svg>';
-  var KANBAN_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><rect x="32" y="48" width="44" height="160" rx="8"/><rect x="106" y="48" width="44" height="112" rx="8"/><rect x="180" y="48" width="44" height="136" rx="8"/></svg>';
-  var BOARD_TABLE_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><rect x="32" y="48" width="192" height="40" rx="8"/><rect x="32" y="104" width="192" height="28" rx="6" opacity="0.55"/><rect x="32" y="148" width="192" height="28" rx="6" opacity="0.55"/><rect x="32" y="192" width="192" height="28" rx="6" opacity="0.55"/></svg>';
-  var SUMMARY_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><rect x="40" y="72" width="176" height="20" rx="6"/><rect x="40" y="118" width="176" height="20" rx="6"/><rect x="40" y="164" width="110" height="20" rx="6"/></svg>';
-  var ACTION_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><rect x="36" y="52" width="56" height="56" rx="12"/><rect x="116" y="68" width="104" height="22" rx="6" opacity="0.55"/><rect x="36" y="148" width="56" height="56" rx="12" opacity="0.55"/><rect x="116" y="164" width="104" height="22" rx="6" opacity="0.55"/></svg>';
-  var OUTLINE_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><circle cx="52" cy="72" r="12"/><rect x="80" y="62" width="136" height="20" rx="6"/><circle cx="96" cy="128" r="9" opacity="0.7"/><rect x="120" y="119" width="96" height="18" rx="6" opacity="0.7"/><circle cx="96" cy="184" r="9" opacity="0.7"/><rect x="120" y="175" width="96" height="18" rx="6" opacity="0.7"/></svg>';
-  var TIMELINE_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><rect x="58" y="36" width="8" height="184" rx="4" opacity="0.5"/><circle cx="62" cy="72" r="16"/><circle cx="62" cy="128" r="16"/><circle cx="62" cy="184" r="16"/><rect x="96" y="62" width="120" height="20" rx="6" opacity="0.55"/><rect x="96" y="118" width="120" height="20" rx="6" opacity="0.55"/><rect x="96" y="174" width="120" height="20" rx="6" opacity="0.55"/></svg>';
-  var AI_TRANSFORMS = [
-    // Open-ended — a free-text request rather than a format conversion.
-    { id: "ask", label: "Ask AI\u2026", iconHtml: ASK_ICON },
-    // Phase 1 — structural (proprietary grammar).
-    { id: "table", label: "Table", iconHtml: TABLE_ICON },
-    { id: "kanban", label: "Board: Kanban", iconHtml: KANBAN_ICON },
-    { id: "board-table", label: "Board: Table", iconHtml: BOARD_TABLE_ICON },
-    { id: "mermaid", label: "Mermaid diagram", iconHtml: SPARKLE },
-    // Phase 2 — "thinking" (plain markdown).
-    { id: "summary", label: "Summary", iconHtml: SUMMARY_ICON },
-    { id: "action-items", label: "Action items", iconHtml: ACTION_ICON },
-    { id: "outline", label: "Outline", iconHtml: OUTLINE_ICON },
-    { id: "timeline", label: "Timeline", iconHtml: TIMELINE_ICON }
-  ];
-  var TARGET_PHRASE = {
-    table: "a markdown table",
-    kanban: "a Kanban board",
-    "board-table": "a table-view board (a database-style table)",
-    mermaid: "a Mermaid diagram",
-    summary: "a concise summary",
-    "action-items": "an action-item checklist",
-    outline: "a structured outline",
-    timeline: "a chronological timeline"
-  };
-  var CONTENT_RULE = "The selection may reference images (![alt](src)) and contain existing diagrams, tables, or boards. Read each one you can access \u2014 open referenced image files (paths are relative to this markdown file) and read diagram/table/board source \u2014 and use what they show as context or data when building the result. Represent items as cells or links where they belong; preserve anything you cannot fold in; if an image is unreadable, use its alt text and the link. Never silently drop content.";
-  var TABLE_SPEC = `Use a standard GitHub-flavored markdown pipe table \u2014 a header row, a \`|---|\` separator row, then one row per item:
-
-| Title | Status | Due |
-|---|---|---|
-| Draft press release | Todo | 2026-06-05 |
-
-In cells: escape literal pipes as \\| and use <br> instead of a newline.`;
-  function boardSpec(view) {
-    const ref = BLOCK_REFERENCES[view === "table" ? "table" : "kanban"];
-    const intro = view === "kanban" ? "Use EXACTLY this custom board block, displayed as a Kanban board (cards grouped into columns by their Status)." : 'Use EXACTLY this custom board block, displayed as a table / database view. This is NOT a plain markdown table \u2014 it is the same board block with active-view="table".';
-    const rules = ref.rules.map((r3) => `- ${r3}`).join("\n");
-    return `${intro} The app parses it \u2014 do not deviate.
-
-${ref.example}
-
-Constraints:
-${rules}`;
-  }
-  var MERMAID_SPEC = `Use a fenced code block whose language is mermaid \u2014 it renders as a live diagram:
-
-${BLOCK_REFERENCES.mermaid.example}
-
-Pick the diagram type that best fits the content (flowchart, sequenceDiagram, stateDiagram-v2, gantt, etc.).`;
-  var SUMMARY_SPEC = `Write a concise summary in plain markdown \u2014 3 to 6 bullet points (or a short paragraph if the content is already brief). Capture the key points, any decisions, and any open risks. Do not add information that is not in the source.`;
-  var ACTION_ITEMS_SPEC = `Extract the actionable tasks as a markdown task list \u2014 one checkbox per line:
-
-- [ ] Task description \u2014 owner (if stated) \u2014 due (if stated)
-
-Include only real action items implied by the content. If a task has no clear owner, append "(owner: ?)". Plain markdown only.`;
-  var OUTLINE_SPEC = `Reorganize the content into a structured markdown outline using headings and nested bullet lists that reflect its hierarchy:
-
-## Section
-- point
-  - sub-point
-
-Group related items, preserve every piece of information, and keep it plain markdown.`;
-  var TIMELINE_SPEC = `Arrange the content as a chronological timeline, earliest first, as a markdown list:
-
-- **YYYY-MM-DD** \u2014 what happened
-
-Use the dates/times present in the content. If an item has no explicit date, place it where it best fits and append "(date?)". Plain markdown only.`;
-  var FORMAT_SPECS = {
-    table: TABLE_SPEC,
-    kanban: boardSpec("kanban"),
-    "board-table": boardSpec("table"),
-    mermaid: MERMAID_SPEC,
-    summary: SUMMARY_SPEC,
-    "action-items": ACTION_ITEMS_SPEC,
-    outline: OUTLINE_SPEC,
-    timeline: TIMELINE_SPEC
-  };
-  function anchorClause(ctx) {
-    const anchor2 = (line2, text6, edge) => line2 != null ? `${edge} at about line ${line2} (\`${text6}\`)` : `${edge} at the line \`${text6}\``;
-    return `${anchor2(ctx.startLine, ctx.startText, "starts")} and ${anchor2(ctx.endLine, ctx.endText, "ends")}`;
-  }
-  function buildWhere(ctx) {
-    return `You are editing the file \`${ctx.filePath}\` in this workspace.
-In that file, find the section that ${anchorClause(ctx)}.`;
-  }
-  var performRule = (filePath) => `Actually perform the change now: edit \`${filePath}\` in place and save it. If you cannot edit files, output the complete new block as your entire reply so it can be pasted in. Do NOT reply with only an acknowledgement such as "done", "ok", or "sure" \u2014 either make the edit or output the block.`;
-  function buildAction2(ctx) {
-    const phrase = TARGET_PHRASE[ctx.target];
-    if (ctx.mode === "replace") {
-      return `Now, replace that entire section with ${phrase} built from its content.`;
-    }
-    if (ctx.mode === "add") {
-      return `Now, add ${phrase} built from that section's content right below it, leaving the original text in place.`;
-    }
-    return `\u2014\u2014\u2014
-Now, build ${phrase} from that section \u2014 `;
-  }
-  function buildAskPrompt(ctx) {
-    const lines = [
-      `Let's talk about a section of the file \`${ctx.filePath}\` in this workspace \u2014 the section that ${anchorClause(ctx)}.`
-    ];
-    lines.push(`Rules:
-- ${CONTENT_RULE}`);
-    if (ctx.mode === "replace") {
-      lines.push("When you revise it, replace the section with your result.");
-    } else if (ctx.mode === "add") {
-      lines.push("When you revise it, add your result right below the original (keep the original in place).");
-    }
-    const req = (ctx.request ?? "").trim();
-    lines.push(req ? req : "\u2014\u2014\u2014\nWhat I'd like you to do with this section: ");
-    return lines.join("\n\n");
-  }
-  function buildPrompt(ctx) {
-    if (ctx.target === "ask") return buildAskPrompt(ctx);
-    const rules = ctx.mode === "custom" ? `Rules:
-- ${CONTENT_RULE}` : `Rules:
-- ${CONTENT_RULE}
-- ${performRule(ctx.filePath)}`;
-    return [
-      buildWhere(ctx),
-      FORMAT_SPECS[ctx.target],
-      rules,
-      buildAction2(ctx)
-    ].join("\n\n");
-  }
-
-  // src/webview/docContext.ts
-  var _documentPath = "";
-  var _workspaceName = null;
-  function setDocumentPath(p3) {
-    _documentPath = p3 || "";
-  }
-  function getDocumentPath() {
-    return _documentPath;
-  }
-  function setWorkspaceName(name) {
-    _workspaceName = name || null;
-  }
-  function getWorkspaceName() {
-    return _workspaceName;
-  }
-  function copyToClipboard(text6) {
-    const vs = window.__mdViewerVscode;
-    vs?.postMessage({ type: "copyText", text: text6, toast: "AI prompt copied to clipboard" });
-  }
-
-  // src/webview/aiSelection.ts
-  function summarizeSelection(text6) {
-    const lines = text6.split("\n").filter((l4) => l4.trim().length > 0).length;
-    const trimmed = text6.trim();
-    const words = trimmed ? trimmed.split(/\s+/).length : 0;
-    return { lines, words };
-  }
-  function formatSummary(s2) {
-    const lineWord = s2.lines === 1 ? "line" : "lines";
-    const wordWord = s2.words === 1 ? "word" : "words";
-    return `Converting ${s2.lines} ${lineWord} \xB7 ~${s2.words} ${wordWord}`;
-  }
-  function locateAnchors(md2, startText, endText) {
-    const lines = md2.split("\n");
-    const find6 = (needle) => {
-      if (!needle) return null;
-      const idx = lines.findIndex((l4) => l4.includes(needle));
-      return idx === -1 ? null : idx + 1;
-    };
-    return { startLine: find6(startText), endLine: find6(endText) };
-  }
-  function truncateAnchor(text6, max11 = 80) {
-    const collapsed = text6.replace(/\s+/g, " ").trim();
-    return collapsed.length <= max11 ? collapsed : collapsed.slice(0, max11) + "\u2026";
-  }
-  function buildAiPanelInput(editor, target, label, from3, to) {
-    const slice6 = editor.state.doc.textBetween(from3, to, "\n", "\n");
-    const nonEmpty = slice6.split("\n").filter((l4) => l4.trim().length > 0);
-    const startRaw = nonEmpty[0] ?? "";
-    const endRaw = nonEmpty[nonEmpty.length - 1] ?? startRaw;
-    const md2 = editor.storage.markdown.getMarkdown();
-    const { startLine, endLine } = locateAnchors(md2, startRaw, endRaw);
-    return {
-      target,
-      targetLabel: label,
-      filePath: getDocumentPath() || "this file",
-      startText: truncateAnchor(startRaw),
-      endText: truncateAnchor(endRaw),
-      startLine,
-      endLine,
-      summary: summarizeSelection(slice6)
-    };
-  }
-
-  // src/webview/aiTransformPanel.ts
-  var STEPS_TRANSFORM = [
-    ["1", "Copy", "the prompt below"],
-    ["2", "Paste into your AI", "Claude Code, Cursor, VS Code AI"],
-    ["3", "It renders", "the AI edits the file"]
-  ];
-  var STEPS_ASK = [
-    ["1", "Copy", "the prompt below"],
-    ["2", "Paste into your AI", "starts the conversation"],
-    ["3", "Ask away", "follow up, or tell it to edit"]
-  ];
-  function stepsHtml(steps) {
-    return steps.map(
-      ([n2, t4, s2]) => `<div class="ai-step-box"><div class="ai-step-num">${n2}</div><div class="ai-step-title">${t4}</div><div class="ai-step-sub">${s2}</div></div>`
-    ).join("");
-  }
-  function createAiTransformPanel() {
-    const el2 = document.createElement("div");
-    el2.className = "ai-panel";
-    el2.style.display = "none";
-    el2.innerHTML = `
-    <div class="ai-panel-head">
-      <span class="ai-panel-title"></span>
-      <button class="ai-panel-close" data-ai-act="close" aria-label="Close">\u2715</button>
-    </div>
-    <div class="ai-panel-summary"></div>
-    <div class="ai-panel-mode">
-      <button class="ai-mode-btn" data-ai-mode="add" data-tip="Keeps your selection and puts the AI's result right after it.">\uFF0B Add below</button>
-      <button class="ai-mode-btn" data-ai-mode="replace" data-tip="The AI's result replaces the section you selected.">\u21BB Replace</button>
-      <button class="ai-mode-btn" data-ai-mode="custom" data-tip="Leaves placement open \u2014 you tell the AI what to do with the result in the chat.">\u2325 Custom</button>
-    </div>
-    <div class="ai-panel-steps"></div>
-    <details class="ai-panel-prompt-wrap">
-      <summary>Preview prompt</summary>
-      <textarea class="ai-panel-prompt" spellcheck="false" readonly></textarea>
-    </details>
-    <div class="ai-panel-foot">
-      <button class="ai-panel-btn ai-panel-btn-primary" data-ai-act="copy">\u{1F4CB} Copy prompt</button>
-    </div>
-  `;
-    document.body.appendChild(el2);
-    const titleEl = el2.querySelector(".ai-panel-title");
-    const summaryEl = el2.querySelector(".ai-panel-summary");
-    const modeRow = el2.querySelector(".ai-panel-mode");
-    const stepsEl = el2.querySelector(".ai-panel-steps");
-    const promptEl = el2.querySelector(".ai-panel-prompt");
-    const copyBtn = el2.querySelector('[data-ai-act="copy"]');
-    const modeBtns = Array.from(el2.querySelectorAll("[data-ai-mode]"));
-    let current = null;
-    let mode = "add";
-    function isAsk() {
-      return current?.target === "ask";
-    }
-    function ctx() {
-      return {
-        filePath: current.filePath,
-        target: current.target,
-        mode,
-        startLine: current.startLine,
-        endLine: current.endLine,
-        startText: current.startText,
-        endText: current.endText
-      };
-    }
-    function render8() {
-      if (!current) return;
-      const ask = isAsk();
-      titleEl.textContent = ask ? "\u2728 Ask AI about this section" : `\u2728 Turn selection into ${current.targetLabel} \u2014 using AI`;
-      summaryEl.textContent = formatSummary(current.summary);
-      stepsEl.innerHTML = stepsHtml(ask ? STEPS_ASK : STEPS_TRANSFORM);
-      promptEl.value = buildPrompt(ctx());
-      modeBtns.forEach(
-        (b3) => b3.classList.toggle("active", b3.dataset.aiMode === mode)
-      );
-    }
-    function close3() {
-      el2.style.display = "none";
-      current = null;
-    }
-    el2.addEventListener("click", (e3) => {
-      const target = e3.target;
-      const modeBtn = target.closest("[data-ai-mode]");
-      if (modeBtn) {
-        mode = modeBtn.dataset.aiMode;
-        render8();
-        return;
-      }
-      const actBtn = target.closest("[data-ai-act]");
-      if (!actBtn) return;
-      switch (actBtn.dataset.aiAct) {
-        case "close":
-          close3();
-          break;
-        case "copy": {
-          copyToClipboard(promptEl.value);
-          const prev2 = copyBtn.textContent;
-          copyBtn.textContent = "\u2713 Copied";
-          setTimeout(() => {
-            copyBtn.textContent = prev2;
-          }, 1500);
-          break;
-        }
-      }
-    });
-    document.addEventListener("keydown", (e3) => {
-      if (e3.key === "Escape" && el2.style.display !== "none") close3();
-    });
-    return {
-      open(input) {
-        current = input;
-        mode = "add";
-        render8();
-        el2.style.display = "block";
-      }
-    };
-  }
-
   // src/webview/copySelection.ts
   function selectionPlainText(editor) {
     const { from: from3, to } = editor.state.selection;
@@ -246724,7 +246307,6 @@ Now, build ${phrase} from that section \u2014 `;
   // src/webview/moreMenu.ts
   var MORE_MENU_ITEMS = [
     { id: "turn-into", label: "Turn into", chevron: true },
-    { id: "turn-into-ai", label: "Turn into using AI", chevron: true },
     { id: "copy", label: "Copy", chevron: false },
     { id: "copy-plain", label: "Copy as plain text", chevron: false }
   ];
@@ -246732,9 +246314,6 @@ Now, build ${phrase} from that section \u2014 `;
     switch (id33) {
       case "turn-into":
         deps.openTurnInto();
-        break;
-      case "turn-into-ai":
-        deps.openTurnIntoAi();
         break;
       case "copy":
         deps.copyRich();
@@ -246775,7 +246354,6 @@ Now, build ${phrase} from that section \u2014 `;
   }
   var MENU_ICONS = {
     "turn-into": P3.squaresFour,
-    "turn-into-ai": P3.sparkle,
     "copy": P3.copy,
     "copy-plain": P3.subtractSquare
   };
@@ -246941,14 +246519,6 @@ Now, build ${phrase} from that section \u2014 `;
     </button>`
     ).join("");
   }
-  function aiListHtml(attr = "ai") {
-    return AI_TRANSFORMS.map(
-      (t4) => `<button class="bm-into-item" data-${attr}="${t4.id}">
-      <span class="bm-into-icon">${t4.iconHtml}</span>
-      <span class="bm-into-label">${t4.label}</span>
-    </button>`
-    ).join("");
-  }
   function buildEl() {
     const el2 = document.createElement("div");
     el2.className = "bubble-menu";
@@ -246979,11 +246549,7 @@ Now, build ${phrase} from that section \u2014 `;
         <input type="text" class="bubble-into-input" placeholder="Filter\u2026" autocomplete="off" spellcheck="false" />
       </div>
       <div class="bubble-into-title">Turn row into</div>
-      <div class="bubble-into-list">${turnIntoHtml()}<div class="bm-into-divider"></div><div class="bm-into-sublabel">\u2728 Using AI</div>${aiListHtml("ai-into")}</div>
-    </div>
-    <div class="bubble-ai hidden" id="bm-ai">
-      <div class="bubble-into-title">Turn selection into \u2014 using AI</div>
-      <div class="bubble-into-list">${aiListHtml()}</div>
+      <div class="bubble-into-list">${turnIntoHtml()}</div>
     </div>
     <div class="bubble-into bm-menu hidden" id="bm-menu">
       <div class="bubble-into-list">${moreMenuHtml()}</div>
@@ -247012,9 +246578,7 @@ Now, build ${phrase} from that section \u2014 `;
     const hlSwatch = el2.querySelector("#bm-hl-swatch");
     const emojiSwatch = el2.querySelector("#bm-emoji-swatch");
     const intoPanel = el2.querySelector("#bm-into");
-    const aiPanel = el2.querySelector("#bm-ai");
     const menuPanel = el2.querySelector("#bm-menu");
-    const aiTransformPanel = createAiTransformPanel();
     const intoInput = el2.querySelector(".bubble-into-input");
     const moreBtn = el2.querySelector('[data-action="more"]');
     const colorBar = el2.querySelector("#bm-color-bar");
@@ -247052,13 +246616,6 @@ Now, build ${phrase} from that section \u2014 `;
         highlightedBlock = null;
       }
     }
-    function openAiPanel(target, label) {
-      const { from: from3, to } = editor.state.selection;
-      aiTransformPanel.open(buildAiPanelInput(editor, target, label, from3, to));
-      closeAi();
-      closeInto();
-      editor.commands.setTextSelection(to);
-    }
     editor.registerPlugin(
       BubbleMenuPlugin({
         pluginKey: new PluginKey("bubbleMenu"),
@@ -247082,9 +246639,6 @@ Now, build ${phrase} from that section \u2014 `;
       intoPanel.classList.add("hidden");
       unhighlightBlock();
     }
-    function closeAi() {
-      aiPanel.classList.add("hidden");
-    }
     function closeMenu() {
       menuPanel.classList.add("hidden");
       moreBtn.classList.remove("active");
@@ -247095,19 +246649,12 @@ Now, build ${phrase} from that section \u2014 `;
     }
     function openInto() {
       closeSwatch();
-      closeAi();
       closeMenu();
       highlightBlock();
       intoInput.value = "";
       filterInto("");
       intoPanel.classList.remove("hidden");
       setTimeout(() => intoInput.focus({ preventScroll: true }), 30);
-    }
-    function openAi() {
-      closeSwatch();
-      closeInto();
-      closeMenu();
-      aiPanel.classList.remove("hidden");
     }
     function openLinkRow() {
       closeSwatch();
@@ -247397,7 +246944,6 @@ Now, build ${phrase} from that section \u2014 `;
         e3.stopPropagation();
         runMoreMenuAction(menuItem.dataset.menu, {
           openTurnInto: openInto,
-          openTurnIntoAi: openAi,
           copyRich: () => {
             void copySelectionRich(editor, postToHost);
             closeMenu();
@@ -247407,14 +246953,6 @@ Now, build ${phrase} from that section \u2014 `;
             closeMenu();
           }
         });
-        return;
-      }
-      const aiItem = target.closest("[data-ai], [data-ai-into]");
-      if (aiItem) {
-        e3.stopPropagation();
-        const tgt = aiItem.dataset.ai ?? aiItem.dataset.aiInto;
-        const def = AI_TRANSFORMS.find((t4) => t4.id === tgt);
-        if (def) openAiPanel(def.id, def.label);
         return;
       }
       const intoItem = target.closest("[data-into]");
@@ -247465,7 +247003,6 @@ Now, build ${phrase} from that section \u2014 `;
           hlSwatch.classList.remove("open");
           emojiSwatch.classList.remove("open");
           closeInto();
-          closeAi();
           closeMenu();
           break;
         case "highlight":
@@ -247473,7 +247010,6 @@ Now, build ${phrase} from that section \u2014 `;
           colorSwatch.classList.remove("open");
           emojiSwatch.classList.remove("open");
           closeInto();
-          closeAi();
           closeMenu();
           break;
         case "emoji":
@@ -247481,13 +247017,11 @@ Now, build ${phrase} from that section \u2014 `;
           colorSwatch.classList.remove("open");
           hlSwatch.classList.remove("open");
           closeInto();
-          closeAi();
           closeMenu();
           break;
         case "more": {
           closeSwatch();
           closeInto();
-          closeAi();
           const isOpen = !menuPanel.classList.contains("hidden");
           if (!isOpen) {
             menuPanel.classList.remove("hidden");
@@ -247548,7 +247082,6 @@ Now, build ${phrase} from that section \u2014 `;
       if (e3.state.selection.empty) {
         closeSwatch();
         closeInto();
-        closeAi();
         closeMenu();
       }
     });
@@ -248172,6 +247705,179 @@ Now, build ${phrase} from that section \u2014 `;
     });
   }
 
+  // src/webview/blockFormatReference.ts
+  var BLOCK_IDS = ["kanban", "table", "mermaid", "callout", "toggle"];
+  function boardExample(view) {
+    const av = view === "table" ? ` active-view="table"` : "";
+    return [
+      `<!-- board:start id="b1" name="My Board" columns="Todo|Doing|Done" column-colors="blue|amber|emerald" field-types="Title=text,Status=status,Owner=person,Due=date,id=text" hidden-fields="id"${av} -->`,
+      ``,
+      `| Title | Status | Owner | Due | id |`,
+      `|---|---|---|---|---|`,
+      `| Write the spec | Doing | @maya | 2026-06-10 | C1 |`,
+      `| Review the PR | Todo |  |  | C2 |`,
+      ``,
+      `<!-- board:body id="C1" -->`,
+      ``,
+      `Longer notes for this card live here.`,
+      ``,
+      `<!-- board:end -->`
+    ].join("\n");
+  }
+  var BOARD_RULES = [
+    "The whole region from `<!-- board:start \u2026 -->` through `<!-- board:end -->` is ONE block \u2014 do not split it.",
+    "Start-marker attributes, in order: `id`, `name`, `columns` (pipe-separated), `column-colors`, `field-types`, `field-options`, `hidden-fields`, optional `active-view`.",
+    "Allowed colour tokens (for `column-colors` and `field-options`): gray, blue, amber, emerald, red, purple, orange, teal, indigo, pink.",
+    "Allowed `field-types` values: text, status, date, person, tags. Keep the hidden `id` field.",
+    "The built-in `Status` field's options are the `columns` (coloured by `column-colors`); each card's Status MUST be exactly one of them.",
+    'You can have MORE THAN ONE `status` column. Extra `status` columns and any `tags` column carry their own options + colours via `field-options="Field=opt:colour|opt:colour;Other=a:blue|b:red"` (fields split by `;`, options by `|`, name and colour by `:`).',
+    "A `tags` cell is a comma-separated list of tag names (a card can have several); each tag is its own coloured chip. A tag not listed in `field-options` is auto-coloured. Names in `columns`/`field-options`/tags must not contain `| ; : =` (tag names also drop `,`).",
+    'Group the Table view by any status or tag column with a view marker placed right after `board:start`: `<!-- board:view name="table" group="FieldName" -->`.',
+    'Every card needs a unique `id` (C1, C2, \u2026) used in BOTH its table row and its `<!-- board:body id="\u2026" -->` block.',
+    "The board's own `id` must be unique within the file \u2014 do NOT copy `b1` from the example. Use a short random id like `b-k4x9`. Two boards sharing an id make the app treat them as the same board.",
+    "Dates as `YYYY-MM-DD`; people as `@name`. In table cells, escape pipes as `\\|` and use `<br>` for line breaks."
+  ];
+  var BLOCK_REFERENCES = {
+    kanban: {
+      id: "kanban",
+      title: "Kanban board",
+      whatItIs: "A board shown as columns of cards, grouped by a Status field. A custom block the app parses \u2014 the exact format below is required.",
+      example: boardExample("kanban"),
+      rules: BOARD_RULES
+    },
+    table: {
+      id: "table",
+      title: "Table board (database view)",
+      whatItIs: 'The SAME custom board block as Kanban, shown as a table/database grid (typed fields as columns). It is NOT a plain markdown table \u2014 it is the board block with `active-view="table"`.',
+      example: boardExample("table"),
+      rules: BOARD_RULES
+    },
+    mermaid: {
+      id: "mermaid",
+      title: "Mermaid diagram",
+      whatItIs: "A fenced code block with the `mermaid` language; renders as a live diagram.",
+      example: [
+        "```mermaid",
+        "flowchart TB",
+        "    A[Start] --> B[Process]",
+        "    B --> C[End]",
+        "```"
+      ].join("\n"),
+      rules: [
+        "Use a fenced code block whose info string is exactly `mermaid`.",
+        "Use standard Mermaid syntax; pick the diagram type that fits (flowchart, sequenceDiagram, stateDiagram-v2, gantt, \u2026).",
+        "Do NOT hand-author position/style sidecar comments (`%% mb-positions: \u2026`); the app's visual editor manages those automatically."
+      ]
+    },
+    callout: {
+      id: "callout",
+      title: "Callout",
+      whatItIs: "A GFM-style admonition with a coloured background and an icon.",
+      example: [
+        "> [!NOTE] \u{1F4A1}",
+        "> Body text here. Continuation lines are also prefixed with `>`."
+      ].join("\n"),
+      rules: [
+        "First line: `> [!TYPE] <emoji>` \u2014 TYPE uppercase; the emoji is optional (a sensible default is used per type).",
+        "Allowed TYPEs: NOTE, TIP, IMPORTANT, WARNING, CAUTION, INFO.",
+        "Every body line is prefixed with `> ` (like a blockquote)."
+      ]
+    },
+    toggle: {
+      id: "toggle",
+      title: "Toggle (collapsible)",
+      whatItIs: "A collapsible section using HTML `<details>` / `<summary>`.",
+      example: [
+        "<details>",
+        "<summary>Click to expand</summary>",
+        "",
+        "Hidden content goes here \u2014 any markdown is allowed.",
+        "",
+        "</details>"
+      ].join("\n"),
+      rules: [
+        "Use `<details>` with a `<summary>` as the first child (the clickable label).",
+        "Leave a blank line after `</summary>` and before `</details>` so the inner markdown parses."
+      ]
+    }
+  };
+
+  // src/webview/aiTransforms.ts
+  var SPARKLE = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M128 24 L150 106 L232 128 L150 150 L128 232 L106 150 L24 128 L106 106 Z"/></svg>';
+  var ASK_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M128 32C70.6 32 24 72.2 24 122c0 21.7 8.8 41.5 23.4 57L36 207a12 12 0 0 0 13.7 16.6L92 213a116 116 0 0 0 36 6c57.4 0 104-40.2 104-90S185.4 32 128 32Zm-40 102a14 14 0 1 1 14-14 14 14 0 0 1-14 14Zm40 0a14 14 0 1 1 14-14 14 14 0 0 1-14 14Zm40 0a14 14 0 1 1 14-14 14 14 0 0 1-14 14Z"/></svg>';
+  var TABLE_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M216 40H40a16 16 0 0 0-16 16v144a16 16 0 0 0 16 16h176a16 16 0 0 0 16-16V56a16 16 0 0 0-16-16ZM40 56h64v40H40Zm80 0h96v40h-96ZM40 112h64v40H40Zm0 88v-32h64v32Zm80 0v-32h96v32Zm96-48h-96v-40h96Z"/></svg>';
+  var KANBAN_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><rect x="32" y="48" width="44" height="160" rx="8"/><rect x="106" y="48" width="44" height="112" rx="8"/><rect x="180" y="48" width="44" height="136" rx="8"/></svg>';
+  var BOARD_TABLE_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><rect x="32" y="48" width="192" height="40" rx="8"/><rect x="32" y="104" width="192" height="28" rx="6" opacity="0.55"/><rect x="32" y="148" width="192" height="28" rx="6" opacity="0.55"/><rect x="32" y="192" width="192" height="28" rx="6" opacity="0.55"/></svg>';
+  var SUMMARY_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><rect x="40" y="72" width="176" height="20" rx="6"/><rect x="40" y="118" width="176" height="20" rx="6"/><rect x="40" y="164" width="110" height="20" rx="6"/></svg>';
+  var ACTION_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><rect x="36" y="52" width="56" height="56" rx="12"/><rect x="116" y="68" width="104" height="22" rx="6" opacity="0.55"/><rect x="36" y="148" width="56" height="56" rx="12" opacity="0.55"/><rect x="116" y="164" width="104" height="22" rx="6" opacity="0.55"/></svg>';
+  var OUTLINE_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><circle cx="52" cy="72" r="12"/><rect x="80" y="62" width="136" height="20" rx="6"/><circle cx="96" cy="128" r="9" opacity="0.7"/><rect x="120" y="119" width="96" height="18" rx="6" opacity="0.7"/><circle cx="96" cy="184" r="9" opacity="0.7"/><rect x="120" y="175" width="96" height="18" rx="6" opacity="0.7"/></svg>';
+  var TIMELINE_ICON = '<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><rect x="58" y="36" width="8" height="184" rx="4" opacity="0.5"/><circle cx="62" cy="72" r="16"/><circle cx="62" cy="128" r="16"/><circle cx="62" cy="184" r="16"/><rect x="96" y="62" width="120" height="20" rx="6" opacity="0.55"/><rect x="96" y="118" width="120" height="20" rx="6" opacity="0.55"/><rect x="96" y="174" width="120" height="20" rx="6" opacity="0.55"/></svg>';
+  var AI_TRANSFORMS = [
+    // Open-ended — a free-text request rather than a format conversion.
+    { id: "ask", label: "Ask AI\u2026", iconHtml: ASK_ICON },
+    // Phase 1 — structural (proprietary grammar).
+    { id: "table", label: "Table", iconHtml: TABLE_ICON },
+    { id: "kanban", label: "Board: Kanban", iconHtml: KANBAN_ICON },
+    { id: "board-table", label: "Board: Table", iconHtml: BOARD_TABLE_ICON },
+    { id: "mermaid", label: "Mermaid diagram", iconHtml: SPARKLE },
+    // Phase 2 — "thinking" (plain markdown).
+    { id: "summary", label: "Summary", iconHtml: SUMMARY_ICON },
+    { id: "action-items", label: "Action items", iconHtml: ACTION_ICON },
+    { id: "outline", label: "Outline", iconHtml: OUTLINE_ICON },
+    { id: "timeline", label: "Timeline", iconHtml: TIMELINE_ICON }
+  ];
+  var TABLE_SPEC = `Use a standard GitHub-flavored markdown pipe table \u2014 a header row, a \`|---|\` separator row, then one row per item:
+
+| Title | Status | Due |
+|---|---|---|
+| Draft press release | Todo | 2026-06-05 |
+
+In cells: escape literal pipes as \\| and use <br> instead of a newline.`;
+  function boardSpec(view) {
+    const ref = BLOCK_REFERENCES[view === "table" ? "table" : "kanban"];
+    const intro = view === "kanban" ? "Use EXACTLY this custom board block, displayed as a Kanban board (cards grouped into columns by their Status)." : 'Use EXACTLY this custom board block, displayed as a table / database view. This is NOT a plain markdown table \u2014 it is the same board block with active-view="table".';
+    const rules = ref.rules.map((r3) => `- ${r3}`).join("\n");
+    return `${intro} The app parses it \u2014 do not deviate.
+
+${ref.example}
+
+Constraints:
+${rules}`;
+  }
+  var MERMAID_SPEC = `Use a fenced code block whose language is mermaid \u2014 it renders as a live diagram:
+
+${BLOCK_REFERENCES.mermaid.example}
+
+Pick the diagram type that best fits the content (flowchart, sequenceDiagram, stateDiagram-v2, gantt, etc.).`;
+  var SUMMARY_SPEC = `Write a concise summary in plain markdown \u2014 3 to 6 bullet points (or a short paragraph if the content is already brief). Capture the key points, any decisions, and any open risks. Do not add information that is not in the source.`;
+  var ACTION_ITEMS_SPEC = `Extract the actionable tasks as a markdown task list \u2014 one checkbox per line:
+
+- [ ] Task description \u2014 owner (if stated) \u2014 due (if stated)
+
+Include only real action items implied by the content. If a task has no clear owner, append "(owner: ?)". Plain markdown only.`;
+  var OUTLINE_SPEC = `Reorganize the content into a structured markdown outline using headings and nested bullet lists that reflect its hierarchy:
+
+## Section
+- point
+  - sub-point
+
+Group related items, preserve every piece of information, and keep it plain markdown.`;
+  var TIMELINE_SPEC = `Arrange the content as a chronological timeline, earliest first, as a markdown list:
+
+- **YYYY-MM-DD** \u2014 what happened
+
+Use the dates/times present in the content. If an item has no explicit date, place it where it best fits and append "(date?)". Plain markdown only.`;
+  var FORMAT_SPECS = {
+    table: TABLE_SPEC,
+    kanban: boardSpec("kanban"),
+    "board-table": boardSpec("table"),
+    mermaid: MERMAID_SPEC,
+    summary: SUMMARY_SPEC,
+    "action-items": ACTION_ITEMS_SPEC,
+    outline: OUTLINE_SPEC,
+    timeline: TIMELINE_SPEC
+  };
+
   // src/webview/blockActions.ts
   var BLOCK_ACTIONS = [
     { id: "turn-into", label: "Turn into" },
@@ -248769,19 +248475,6 @@ Now, build ${phrase} from that section \u2014 `;
     let filtered = BLOCK_DEFS;
     let drillParent = null;
     let context = {};
-    const aiTransformPanel = createAiTransformPanel();
-    function convertActiveWithAi(target, label) {
-      const ab = context.activeBlock;
-      if (!ab) {
-        close3();
-        return;
-      }
-      const node2 = editor.state.doc.nodeAt(ab.blockPos);
-      const from3 = ab.blockPos;
-      const to = node2 ? ab.blockPos + node2.nodeSize : ab.blockPos;
-      aiTransformPanel.open(buildAiPanelInput(editor, target, label, from3, to));
-      close3();
-    }
     let popover = null;
     let actionMode = false;
     let activeRows = [];
@@ -248828,7 +248521,7 @@ Now, build ${phrase} from that section \u2014 `;
       const flist = flyoutList;
       flist.innerHTML = "";
       flyoutRows = [];
-      const { targets, aiItems } = turnIntoFlyoutItems(BLOCK_DEFS);
+      const { targets } = turnIntoFlyoutItems(BLOCK_DEFS);
       const makeFlyRow = (iconHtml, label, activate, current = false) => {
         const row = document.createElement("div");
         row.className = "block-picker-item";
@@ -248844,13 +248537,6 @@ Now, build ${phrase} from that section \u2014 `;
         flyoutRows.push(activate);
       };
       targets.forEach((t4) => makeFlyRow(t4.iconHtml, t4.label, () => convertActive(t4), isActiveItem(t4)));
-      if (aiItems.length) {
-        const sub2 = document.createElement("div");
-        sub2.className = "block-picker-section-label";
-        sub2.textContent = "\u2728 Using AI";
-        flist.appendChild(sub2);
-        aiItems.forEach((t4) => makeFlyRow(t4.iconHtml, t4.label, () => convertActiveWithAi(t4.id, t4.label)));
-      }
       flyoutIdx = 0;
       updateFlyoutActive();
     }
@@ -251977,6 +251663,19 @@ ${autoPrintScript}
     };
   }
 
+  // src/webview/docContext.ts
+  var _documentPath = "";
+  var _workspaceName = null;
+  function setDocumentPath(p3) {
+    _documentPath = p3 || "";
+  }
+  function setWorkspaceName(name) {
+    _workspaceName = name || null;
+  }
+  function getWorkspaceName() {
+    return _workspaceName;
+  }
+
   // src/webview/skillBuilder.ts
   var FOLDER_NAME = "md-editor-blocks";
   var DESCRIPTION = "Use when creating or editing rich blocks in Markdown (.md/.mdx) files for the MD Editor Plus editor \u2014 Kanban or Table/database boards (project boards, task/sprint boards), Mermaid diagrams (flowcharts, graphs), callouts (note / tip / warning / important / caution admonitions), and collapsible toggles (expandable <details> sections). Provides the exact on-disk block grammar so they render in the editor instead of showing as raw text.";
@@ -252351,7 +252050,6 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
     const readOnlyPill = document.getElementById("readonly-pill");
     const readOnlyRow = document.getElementById("readonly-row");
     const sourceWordWrapToggle = document.getElementById("source-word-wrap-toggle");
-    const refreshBtn = document.getElementById("refresh-btn");
     const roController = createReadOnlyController({
       root: document.documentElement,
       toggleSwitch: readOnlyToggle,
@@ -252440,9 +252138,6 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
       const next3 = !sourceWordWrapToggle.classList.contains("on");
       applySourceWordWrap(next3);
       vscode.postMessage({ type: "saveSourceWordWrap", value: next3 });
-    });
-    refreshBtn?.addEventListener("click", () => {
-      vscode.postMessage({ type: "refresh" });
     });
     document.getElementById("diff-btn")?.addEventListener("click", () => {
       vscode.postMessage({ type: "openFullDiff", markdown: getCurrentMarkdown() });
@@ -252864,10 +252559,6 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
       panel2.querySelectorAll(".settings-action").forEach((el2) => {
         if (el2.hasAttribute("data-submenu")) return;
         el2.addEventListener("mouseenter", scheduleSubmenuClose);
-      });
-      panel2.querySelector(".act-refresh")?.addEventListener("click", () => {
-        vscode.postMessage({ type: "refresh" });
-        closeAllActionsPanels();
       });
       panel2.querySelector(".act-copy")?.addEventListener("click", () => {
         vscode.postMessage({ type: "copyContent" });
