@@ -5,9 +5,9 @@ A minimal native macOS Markdown viewer and editor for offline local files. No El
 Formerly known as MD_View-Edit_macOS. Current version is stored in [`VERSION`](VERSION).
 
 
-![Screenshot](https://github.com/Rydvansky/MD_View-Edit_macOS/blob/main/MD_view-edit1.png)
-![Screenshot-dark](https://github.com/Rydvansky/MD_View-Edit_macOS/blob/main/MD_view-edit2.png)
-![Screenshot-info](https://github.com/Rydvansky/MD_View-Edit_macOS/blob/main/md-info.png)
+![Screenshot](MD-design-macOS-3.png)
+![Screenshot-dark](MD-design-macOS-2.png)
+![Screenshot-info](MD-design-macOS-1.png)
 
 ## Features
 

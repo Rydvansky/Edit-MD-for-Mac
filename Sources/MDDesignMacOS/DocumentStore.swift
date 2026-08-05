@@ -49,6 +49,13 @@ final class DocumentStore: ObservableObject {
         displayNameOverride ?? fileURL?.lastPathComponent ?? "Untitled Markdown"
     }
 
+    /// Full window title: "<file> — MD Design". Driven declaratively via
+    /// .navigationTitle in DocumentWindowView (SwiftUI WindowGroup owns
+    /// NSWindow.title and clobbers imperative sets — the v2.0.5 title bug).
+    var windowTitle: String {
+        "\(currentFileName) — MD Design"
+    }
+
     var canSave: Bool {
         fileURL != nil || !text.isEmpty
     }

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 This project follows semantic versioning: `MAJOR.MINOR.PATCH`.
 
+## [2.0.6] - 2026-08-05
+
+### Fixed
+
+- The window title now shows the current file name ("<file> — MD Design"). SwiftUI's WindowGroup owns NSWindow.title and kept resetting the imperatively set title to the default; the title is now driven declaratively via .navigationTitle and updates on open/save-as. The edited-state dot and the proxy icon are unchanged.
+
 ## [2.0.5] - 2026-08-05
 
 ### Changed

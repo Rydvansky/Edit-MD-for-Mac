@@ -193,9 +193,13 @@ private struct AppearanceBridge: NSViewRepresentable {
     }
 }
 
-/// Keeps the NSWindow chrome in sync with the document: title shows
-/// "<file> — MD Design", the standard edited-state dot appears via
-/// isDocumentEdited, and representedURL gives the native proxy icon.
+/// Keeps the NSWindow chrome in sync with the document: the dirty dot
+/// (isDocumentEdited) and the proxy icon (representedURL) — SwiftUI's
+/// WindowGroup does not manage those. The title itself is driven declaratively
+/// by .navigationTitle on DocumentWindowView (the scene owns NSWindow.title
+/// and would clobber this set); the title line here only matters for
+/// AppKit-created windows (WindowManager.openNewWindow), where nothing
+/// re-asserts the title and save-as renames must still propagate.
 private struct WindowTitleSync: NSViewRepresentable {
     let store: DocumentStore
 
@@ -212,7 +216,7 @@ private struct WindowTitleSync: NSViewRepresentable {
     private func apply(from view: NSView) {
         DispatchQueue.main.async {
             guard let window = view.window else { return }
-            window.title = "\(store.currentFileName) — MD Design"
+            window.title = store.windowTitle
             window.isDocumentEdited = store.isDirty
             window.representedURL = store.fileURL
         }

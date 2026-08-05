@@ -36,6 +36,14 @@ struct DocumentWindowView: View {
         ContentView()
             .environmentObject(store)
             .focusedSceneValue(\.documentStore, store)
+            // Declarative window title — the WindowGroup scene owns
+            // NSWindow.title and re-asserts it on state updates, so an
+            // imperative set from a representable loses the race (v2.0.5 bug:
+            // title showed only the default, no file name). Binding it through
+            // .navigationTitle makes SwiftUI itself write the title on every
+            // store change. Inert inside AppKit-hosted windows, where
+            // WindowTitleSync's imperative set covers save-as renames.
+            .navigationTitle(store.windowTitle)
             .background(WindowRegistrationView(store: store))
             .preferredColorScheme(appearanceMode.colorScheme)
             .frame(minWidth: 940, minHeight: 620)
