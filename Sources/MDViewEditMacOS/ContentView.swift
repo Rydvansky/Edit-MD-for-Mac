@@ -6,9 +6,9 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @EnvironmentObject private var store: DocumentStore
     @AppStorage("appearanceMode") private var appearanceModeRaw = AppearanceMode.system.rawValue
-    @AppStorage("showEditorPane") private var showEditorPane = true
-    @AppStorage("showPreviewPane") private var showPreviewPane = true
+    @AppStorage("editorMode") private var editorModeRaw = EditorMode.preview.rawValue
     @AppStorage("showNavigationPane") private var showNavigationPane = false
+    @StateObject private var webBridge = WebEditorBridge()
     @State private var dropIsTargeted = false
     @State private var showingMarkdownHelp = false
     @State private var scrollTarget: MarkdownScrollTarget?
@@ -24,14 +24,18 @@ struct ContentView: View {
         AppearanceMode(rawValue: appearanceModeRaw) ?? .system
     }
 
+    private var editorMode: EditorMode {
+        EditorMode(rawValue: editorModeRaw) ?? .preview
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HeaderView(
                 appearanceModeRaw: $appearanceModeRaw,
-                showEditorPane: $showEditorPane,
-                showPreviewPane: $showPreviewPane,
+                editorModeRaw: $editorModeRaw,
                 showNavigationPane: $showNavigationPane,
-                showingMarkdownHelp: $showingMarkdownHelp
+                showingMarkdownHelp: $showingMarkdownHelp,
+                onSelectMode: setEditorMode(_:)
             )
 
             Divider()
@@ -52,10 +56,17 @@ struct ContentView: View {
             }
         }
         .background(AppearanceBridge(mode: appearanceMode))
-        .onAppear(perform: ensureVisiblePane)
-        .onChange(of: showEditorPane) { _ in ensureVisiblePane() }
-        .onChange(of: showPreviewPane) { _ in ensureVisiblePane() }
-        .onChange(of: showNavigationPane) { _ in ensureVisiblePane() }
+        .onAppear {
+            webBridge.attach(store: store)
+        }
+        .onChange(of: store.text) { newText in
+            webBridge.storeTextDidChange(newText, reload: false)
+        }
+        .onChange(of: store.fileURL) { _ in
+            // File opened/saved-as: force a refresh-style update so the web
+            // editor re-renders unconditionally and images re-resolve.
+            webBridge.storeTextDidChange(store.text, reload: true)
+        }
         .onDrop(
             of: [UTType.fileURL.identifier],
             isTargeted: $dropIsTargeted,
@@ -76,42 +87,60 @@ struct ContentView: View {
 
     @ViewBuilder
     private var workspace: some View {
-        HSplitView {
-            if showNavigationPane {
+        if showNavigationPane {
+            HSplitView {
                 NavigationPane { heading in
                     scrollTarget = MarkdownScrollTarget(blockID: heading.id, line: heading.line, source: .navigation)
                 }
                 .frame(minWidth: 220, idealWidth: 260, maxWidth: 360)
-            }
 
-            if showEditorPane {
-                EditorPane(
-                    text: editorText,
-                    fontSize: store.fontSize,
-                    scrollTarget: scrollTarget,
-                    onLineSelected: syncFromEditor(line:)
-                )
-                    .frame(minWidth: 360)
+                mainEditorArea
+                    .frame(minWidth: 420)
             }
-
-            if showPreviewPane {
-                PreviewPane(scrollTarget: scrollTarget) { block, fraction in
-                    scrollTarget = MarkdownScrollTarget(
-                        blockID: block.id,
-                        line: block.startLine,
-                        endLine: block.endLine,
-                        fraction: fraction,
-                        source: .preview
-                    )
-                }
-                    .frame(minWidth: 360)
-            }
+        } else {
+            mainEditorArea
         }
     }
 
-    private func ensureVisiblePane() {
-        if !showEditorPane && !showPreviewPane && !showNavigationPane {
-            showEditorPane = true
+    /// Single full-width surface: either the source code editor or the rich
+    /// (WYSIWYG) web preview/editor. Both stay alive in the ZStack so mode
+    /// switches are instant and no state is lost; the inactive one is
+    /// transparent and does not receive events.
+    private var mainEditorArea: some View {
+        let isCode = editorMode == .code
+        return ZStack {
+            EditorPane(
+                text: editorText,
+                fontSize: store.fontSize,
+                scrollTarget: scrollTarget,
+                onLineSelected: syncFromEditor(line:)
+            )
+            .opacity(isCode ? 1 : 0)
+            .zIndex(isCode ? 1 : 0)
+            .allowsHitTesting(isCode)
+
+            WebEditorPane(bridge: webBridge)
+                .opacity(isCode ? 0 : 1)
+                .zIndex(isCode ? 0 : 1)
+                .allowsHitTesting(!isCode)
+        }
+    }
+
+    private func setEditorMode(_ mode: EditorMode) {
+        guard mode != editorMode else { return }
+
+        if editorMode == .preview && mode == .code {
+            // Flush the web editor's latest markdown into the store first so
+            // the code editor never shows stale text.
+            Task { @MainActor in
+                await webBridge.flushIntoStore()
+                editorModeRaw = mode.rawValue
+            }
+        } else {
+            editorModeRaw = mode.rawValue
+            if mode == .preview {
+                webBridge.pushStoreTextNow()
+            }
         }
     }
 
@@ -190,10 +219,14 @@ private struct AppearanceBridge: NSViewRepresentable {
 private struct HeaderView: View {
     @EnvironmentObject private var store: DocumentStore
     @Binding var appearanceModeRaw: String
-    @Binding var showEditorPane: Bool
-    @Binding var showPreviewPane: Bool
+    @Binding var editorModeRaw: String
     @Binding var showNavigationPane: Bool
     @Binding var showingMarkdownHelp: Bool
+    let onSelectMode: (EditorMode) -> Void
+
+    private var editorMode: EditorMode {
+        EditorMode(rawValue: editorModeRaw) ?? .preview
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -233,11 +266,28 @@ private struct HeaderView: View {
 
             HeaderSeparator()
 
-            PaneToggleGroup(
-                showEditorPane: $showEditorPane,
-                showPreviewPane: $showPreviewPane,
-                showNavigationPane: $showNavigationPane
-            )
+            HStack(spacing: 4) {
+                PaneToggleButton(
+                    title: "Navigation",
+                    icon: "list.bullet.indent",
+                    isOn: showNavigationPane,
+                    action: { showNavigationPane.toggle() }
+                )
+
+                ModeToggleButton(
+                    title: "Code",
+                    icon: "chevron.left.forwardslash.chevron.right",
+                    isOn: editorMode == .code,
+                    action: { onSelectMode(.code) }
+                )
+
+                ModeToggleButton(
+                    title: "Preview",
+                    icon: "doc.richtext",
+                    isOn: editorMode == .preview,
+                    action: { onSelectMode(.preview) }
+                )
+            }
 
             HeaderSeparator()
 
@@ -247,7 +297,7 @@ private struct HeaderView: View {
                 } label: {
                     Image(systemName: "textformat.size.smaller")
                 }
-                .help("Decrease font size")
+                .help("Decrease font size (Code mode)")
 
                 Text("\(Int(store.fontSize))")
                     .font(.caption.monospacedDigit())
@@ -259,7 +309,7 @@ private struct HeaderView: View {
                 } label: {
                     Image(systemName: "textformat.size.larger")
                 }
-                .help("Increase font size")
+                .help("Increase font size (Code mode)")
             }
             .buttonStyle(.bordered)
 
@@ -282,61 +332,6 @@ private struct HeaderView: View {
     }
 }
 
-private struct PaneToggleGroup: View {
-    @Binding var showEditorPane: Bool
-    @Binding var showPreviewPane: Bool
-    @Binding var showNavigationPane: Bool
-
-    var body: some View {
-        HStack(spacing: 4) {
-            PaneToggleButton(
-                title: "Navigation",
-                icon: "list.bullet.indent",
-                isOn: showNavigationPane,
-                action: { toggle(.navigation) }
-            )
-
-            PaneToggleButton(
-                title: "Edit",
-                icon: "pencil.line",
-                isOn: showEditorPane,
-                action: { toggle(.editor) }
-            )
-
-            PaneToggleButton(
-                title: "Preview",
-                icon: "doc.richtext",
-                isOn: showPreviewPane,
-                action: { toggle(.preview) }
-            )
-        }
-    }
-
-    private func toggle(_ pane: PaneKind) {
-        var nextEditor = showEditorPane
-        var nextPreview = showPreviewPane
-        var nextNavigation = showNavigationPane
-
-        switch pane {
-        case .editor: nextEditor.toggle()
-        case .preview: nextPreview.toggle()
-        case .navigation: nextNavigation.toggle()
-        }
-
-        guard nextEditor || nextPreview || nextNavigation else { return }
-
-        showEditorPane = nextEditor
-        showPreviewPane = nextPreview
-        showNavigationPane = nextNavigation
-    }
-
-    private enum PaneKind {
-        case editor
-        case preview
-        case navigation
-    }
-}
-
 private struct PaneToggleButton: View {
     let title: String
     let icon: String
@@ -351,6 +346,24 @@ private struct PaneToggleButton: View {
         .buttonStyle(.bordered)
         .controlSize(.small)
         .tint(isOn ? Color.accentColor : Color.secondary)
+        .help(title)
+    }
+}
+
+private struct ModeToggleButton: View {
+    let title: String
+    let icon: String
+    let isOn: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .labelStyle(.titleAndIcon)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .tint(isOn ? Color.accentColor : Color.secondary.opacity(0.6))
         .help(title)
     }
 }
@@ -396,250 +409,13 @@ private struct EditorPane: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            PaneTitle(title: "Editor", icon: "pencil.line")
+            PaneTitle(title: "Code", icon: "chevron.left.forwardslash.chevron.right")
             MarkdownTextView(
                 text: $text,
                 fontSize: fontSize,
                 scrollTarget: scrollTarget,
                 onLineSelected: onLineSelected
             )
-        }
-    }
-}
-
-private struct PreviewPane: View {
-    @EnvironmentObject private var store: DocumentStore
-    let scrollTarget: MarkdownScrollTarget?
-    let onBlockSelected: (MarkdownBlock, Double) -> Void
-    @State private var previewScrollView: NSScrollView?
-    @State private var headingPositions: [String: CGFloat] = [:]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                PaneTitle(title: "Preview", icon: "doc.richtext")
-                Spacer()
-                if store.isRendering {
-                    ProgressView()
-                        .controlSize(.small)
-                        .padding(.trailing, 12)
-                }
-            }
-
-            if let notice = store.previewNotice {
-                Text(notice)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 8)
-            }
-
-            ScrollViewReader { proxy in
-                GeometryReader { geometry in
-                    let contentWidth = max(0, geometry.size.width - 44)
-
-                    ScrollView {
-                        MarkdownPreview(
-                            blocks: store.previewBlocks,
-                            fontSize: store.fontSize,
-                            referenceLinks: store.referenceLinks,
-                            baseURL: store.documentBaseURL,
-                            availableWidth: contentWidth
-                        )
-                            .frame(width: contentWidth, alignment: .leading)
-                            .padding(.horizontal, 22)
-                            .padding(.vertical, 18)
-                            .background(ScrollViewAccessor(scrollView: $previewScrollView))
-                            .background(
-                                PreviewClickMonitor(
-                                    scrollView: $previewScrollView,
-                                    blocks: store.previewBlocks,
-                                    blockPositions: headingPositions,
-                                    contentTopInset: 18,
-                                    onBlockSelected: onBlockSelected
-                                )
-                            )
-                    }
-                }
-                .onPreferenceChange(HeadingPositionPreferenceKey.self) { positions in
-                    headingPositions = positions
-                }
-                .onChange(of: scrollTarget) { target in
-                    guard let target else { return }
-                    guard target.source != .preview else { return }
-                    if scrollPreview(to: target) {
-                        return
-                    }
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        proxy.scrollTo(target.blockID, anchor: .top)
-                    }
-                }
-            }
-        }
-    }
-
-    private func scrollPreview(to target: MarkdownScrollTarget) -> Bool {
-        guard
-            let y = headingPositions[target.blockID],
-            let scrollView = previewScrollView
-        else {
-            return false
-        }
-
-        let targetY = max(0, y - 88)
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.18
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            scrollView.contentView.animator().setBoundsOrigin(NSPoint(x: 0, y: targetY))
-        }
-        scrollView.reflectScrolledClipView(scrollView.contentView)
-        return true
-    }
-}
-
-private struct PreviewClickMonitor: NSViewRepresentable {
-    @Binding var scrollView: NSScrollView?
-    let blocks: [MarkdownBlock]
-    let blockPositions: [String: CGFloat]
-    let contentTopInset: CGFloat
-    let onBlockSelected: (MarkdownBlock, Double) -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView(frame: .zero)
-        context.coordinator.update(
-            scrollView: scrollView,
-            blocks: blocks,
-            blockPositions: blockPositions,
-            contentTopInset: contentTopInset,
-            onBlockSelected: onBlockSelected
-        )
-        context.coordinator.installMonitorIfNeeded()
-        return view
-    }
-
-    func updateNSView(_ view: NSView, context: Context) {
-        context.coordinator.update(
-            scrollView: scrollView,
-            blocks: blocks,
-            blockPositions: blockPositions,
-            contentTopInset: contentTopInset,
-            onBlockSelected: onBlockSelected
-        )
-        context.coordinator.installMonitorIfNeeded()
-    }
-
-    final class Coordinator {
-        private weak var scrollView: NSScrollView?
-        private var blocks: [MarkdownBlock] = []
-        private var blockPositions: [String: CGFloat] = [:]
-        private var contentTopInset: CGFloat = 0
-        private var onBlockSelected: ((MarkdownBlock, Double) -> Void)?
-        private var monitor: Any?
-
-        deinit {
-            if let monitor {
-                NSEvent.removeMonitor(monitor)
-            }
-        }
-
-        func update(
-            scrollView: NSScrollView?,
-            blocks: [MarkdownBlock],
-            blockPositions: [String: CGFloat],
-            contentTopInset: CGFloat,
-            onBlockSelected: @escaping (MarkdownBlock, Double) -> Void
-        ) {
-            self.scrollView = scrollView
-            self.blocks = blocks
-            self.blockPositions = blockPositions
-            self.contentTopInset = contentTopInset
-            self.onBlockSelected = onBlockSelected
-        }
-
-        func installMonitorIfNeeded() {
-            guard monitor == nil else { return }
-
-            monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown]) { [weak self] event in
-                self?.handle(event)
-                return event
-            }
-        }
-
-        private func handle(_ event: NSEvent) {
-            guard
-                let scrollView,
-                let window = scrollView.window,
-                event.window === window,
-                !blocks.isEmpty
-            else {
-                return
-            }
-
-            let pointInClip = scrollView.contentView.convert(event.locationInWindow, from: nil)
-            guard scrollView.contentView.bounds.contains(pointInClip) else { return }
-
-            let documentY = scrollView.contentView.bounds.origin.y + pointInClip.y
-            guard let result = blockAndFraction(at: documentY) else { return }
-
-            onBlockSelected?(result.block, result.fraction)
-        }
-
-        private func blockAndFraction(at documentY: CGFloat) -> (block: MarkdownBlock, fraction: Double)? {
-            // blockPositions are in "previewContent" (LazyVStack) coords.
-            // documentY from NSScrollView is offset by the top padding applied to MarkdownPreview.
-            let y = documentY - contentTopInset
-
-            let sorted = blocks
-                .compactMap { block -> (MarkdownBlock, CGFloat)? in
-                    guard let position = blockPositions[block.id] else { return nil }
-                    return (block, position)
-                }
-                .sorted { $0.1 < $1.1 }
-
-            guard !sorted.isEmpty else { return nil }
-
-            var selectedIdx = 0
-            for (i, item) in sorted.enumerated() {
-                if item.1 <= y + 8 { selectedIdx = i } else { break }
-            }
-
-            let (block, blockY) = sorted[selectedIdx]
-
-            let endY: CGFloat
-            if selectedIdx + 1 < sorted.count {
-                endY = sorted[selectedIdx + 1].1
-            } else {
-                let docHeight = (scrollView?.documentView?.bounds.height ?? (blockY + contentTopInset + 200)) - contentTopInset
-                endY = docHeight
-            }
-
-            let blockHeight = max(1, endY - blockY)
-            let relativeY = max(0, min(blockHeight, y - blockY))
-            let fraction = Double(relativeY / blockHeight)
-
-            return (block, fraction)
-        }
-    }
-}
-
-private struct ScrollViewAccessor: NSViewRepresentable {
-    @Binding var scrollView: NSScrollView?
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView(frame: .zero)
-        DispatchQueue.main.async {
-            scrollView = view.enclosingScrollView
-        }
-        return view
-    }
-
-    func updateNSView(_ view: NSView, context: Context) {
-        DispatchQueue.main.async {
-            scrollView = view.enclosingScrollView
         }
     }
 }

@@ -25,6 +25,34 @@ final class DocumentStore: ObservableObject {
     private var renderTask: Task<Void, Never>?
     private var didOpenStartupArguments = false
 
+    /// Where the most recent text change came from. `.webview` changes must not
+    /// be pushed back into the web editor (echo suppression).
+    private(set) var lastTextChangeOrigin: TextChangeOrigin = .host
+
+    /// Async hook installed by WebEditorBridge: flushes the web editor's pending
+    /// debounced edit and returns its authoritative markdown.
+    var markdownFlushProvider: (() async -> String?)?
+    /// Synchronous best-effort flush trigger for modal prompts (close/discard).
+    var pendingFlushRequest: (() -> Void)?
+    /// Reports save lifecycle to the web editor's save indicator (saving/saved/failed).
+    var saveStateSink: ((_ state: String, _ flash: Bool) -> Void)?
+
+    /// Apply markdown that came FROM the web editor. Marked dirty, origin .webview.
+    func applyWebviewEdit(_ markdown: String) {
+        lastTextChangeOrigin = .webview
+        text = markdown
+        isDirty = true
+        scheduleRender()
+    }
+
+    /// Reload the current file from disk (webview "refresh" action).
+    func reloadFromDisk() {
+        guard let fileURL else { return }
+        Task { @MainActor in
+            await open(fileURL)
+        }
+    }
+
     var currentFileName: String {
         displayNameOverride ?? fileURL?.lastPathComponent ?? "Untitled Markdown"
     }
@@ -38,6 +66,7 @@ final class DocumentStore: ObservableObject {
     }
 
     func updateText(_ newValue: String) {
+        lastTextChangeOrigin = .host
         text = newValue
         isDirty = true
         scheduleRender()
@@ -120,6 +149,7 @@ final class DocumentStore: ObservableObject {
             fileURL = url
             displayNameOverride = nil
             documentBaseURL = url.deletingLastPathComponent()
+            lastTextChangeOrigin = .host
             text = loaded
             isDirty = false
             fileSizeDescription = ByteCountFormatter.string(fromByteCount: Int64(byteCount), countStyle: .file)
@@ -138,6 +168,17 @@ final class DocumentStore: ObservableObject {
     }
 
     func save() {
+        Task { @MainActor in
+            // Deterministic flush: pull the web editor's latest markdown
+            // (including any pending debounced edit) before writing.
+            if let flushed = await markdownFlushProvider?(), flushed != text {
+                applyWebviewEdit(flushed)
+            }
+            performSave()
+        }
+    }
+
+    private func performSave() {
         if let fileURL {
             save(to: fileURL)
             return
@@ -155,6 +196,7 @@ final class DocumentStore: ObservableObject {
 
     func save(to url: URL) {
         let content = text
+        saveStateSink?("saving", false)
         Task {
             do {
                 try await Task.detached(priority: .userInitiated) {
@@ -167,9 +209,11 @@ final class DocumentStore: ObservableObject {
                     isDirty = false
                     let bytes = content.data(using: .utf8)?.count ?? 0
                     fileSizeDescription = ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+                    saveStateSink?("saved", true)
                 }
             } catch {
                 await MainActor.run {
+                    saveStateSink?("failed", false)
                     showError("Could not save the file.", recovery: error.localizedDescription)
                 }
             }
@@ -235,6 +279,10 @@ final class DocumentStore: ObservableObject {
 
     func confirmDiscardIfNeeded() -> Bool {
         guard isDirty else { return true }
+
+        // Best-effort flush of any pending web-editor edit before the prompt;
+        // the modal alert gives the bridge time to deliver it.
+        pendingFlushRequest?()
 
         let alert = NSAlert()
         alert.messageText = "Save changes to \(currentFileName)?"
@@ -351,6 +399,11 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
         case .dark: NSAppearance(named: .darkAqua)
         }
     }
+}
+
+enum TextChangeOrigin {
+    case host
+    case webview
 }
 
 extension UTType {

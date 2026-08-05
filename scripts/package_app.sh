@@ -31,6 +31,8 @@ cp "$ROOT_DIR/Resources/Info.plist" "$APP_DIR/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP_DIR/Contents/Info.plist"
 cp "$ROOT_DIR/Resources/AppIcon.icns" "$APP_DIR/Contents/Resources/AppIcon.icns"
 cp "$ROOT_DIR/markdown_demo.md" "$APP_DIR/Contents/Resources/markdown_demo.md"
+mkdir -p "$APP_DIR/Contents/Resources/Webview"
+cp "$ROOT_DIR/Resources/Webview/"* "$APP_DIR/Contents/Resources/Webview/"
 chmod +x "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME"
 
 codesign --force --deep --sign - "$APP_DIR" >/dev/null
