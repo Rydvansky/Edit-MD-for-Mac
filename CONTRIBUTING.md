@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for considering a contribution to MD_View-Edit_macOS.
+Thanks for considering a contribution to Edit MD for Mac.
 
 ## Development
 
@@ -18,7 +18,7 @@ swift build
 Run:
 
 ```bash
-swift run MDDesignMacOS
+swift run EditMDForMac
 ```
 
 Package a release build:

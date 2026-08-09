@@ -50,9 +50,6 @@ struct ContentView: View {
         .focusedSceneValue(\.markdownHelpVisible, $showingMarkdownHelp)
         .onAppear {
             webBridge.attach(store: store)
-            // The header's mode toggle is gone (the webview's own toolbar
-            // covers Preview/Code), so always land in rich preview mode.
-            editorModeRaw = EditorMode.preview.rawValue
         }
         .onChange(of: store.text) { newText in
             webBridge.storeTextDidChange(newText, reload: false)

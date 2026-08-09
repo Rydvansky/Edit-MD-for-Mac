@@ -25,11 +25,11 @@ struct WebEditorSettings: Equatable {
     var font = "sans"              // sans | serif | mono
     var textSize = "m"             // s | m | l | xl  (14/16/18/20 px)
     var pageWidth = 800
-    var fullWidth = false
+    var fullWidth = true
     var alwaysDarkCode = false
     var alwaysDarkDiagram = false
     var alwaysDarkSource = false
-    var sourceFullWidth = false
+    var sourceFullWidth = true
     var shortenCodeSnippets = false
     var smartTypography = true
     var outlineVisible = false

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 This project follows semantic versioning: `MAJOR.MINOR.PATCH`.
 
+## [Unreleased]
+
+### Changed
+
+- Renamed the app to Edit MD for Mac. The app bundle, executable, Swift package, release artifacts, window titles, documentation, screenshots, and GitHub repository now use the new name.
+
+## [2.0.7] - 2026-08-09
+
+### Fixed
+
+- Preview settings now persist when a document is closed and reopened.
+
 ## [2.0.6] - 2026-08-05
 
 ### Fixed

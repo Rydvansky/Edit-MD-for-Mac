@@ -1,13 +1,13 @@
-# MD-design-macOS
+# Edit MD for Mac
 
 A minimal native macOS Markdown viewer and editor for offline local files. No Electron, no server, no network requirement.
 
-Formerly known as MD_View-Edit_macOS. Current version is stored in [`VERSION`](VERSION).
+Current version is stored in [`VERSION`](VERSION).
 
 
-![Screenshot](MD-design-macOS-3.png)
-![Screenshot-dark](MD-design-macOS-2.png)
-![Screenshot-info](MD-design-macOS-1.png)
+![Screenshot](Edit-MD-for-Mac-3.png)
+![Screenshot-dark](Edit-MD-for-Mac-2.png)
+![Screenshot-info](Edit-MD-for-Mac-1.png)
 
 ## Features
 
@@ -24,7 +24,7 @@ Formerly known as MD_View-Edit_macOS. Current version is stored in [`VERSION`](V
 
 ## Download And Install
 
-For end users, download the latest `MD-design-macOS-vX.Y.Z.dmg` or `MD-design-macOS-vX.Y.Z.zip` from GitHub Releases.
+For end users, download the latest `Edit MD for Mac-vX.Y.Z.dmg` or `Edit MD for Mac-vX.Y.Z.zip` from GitHub Releases.
 
 For normal installation, open the `.dmg` and drag the app into `Applications`.
 
@@ -44,8 +44,8 @@ The project version is stored in [`VERSION`](VERSION).
 Release files include the version in their names:
 
 ```text
-MD-design-macOS-vX.Y.Z.zip
-MD-design-macOS-vX.Y.Z.dmg
+Edit MD for Mac-vX.Y.Z.zip
+Edit MD for Mac-vX.Y.Z.dmg
 ```
 
 The macOS app bundle version is written to `CFBundleShortVersionString` during packaging.
@@ -59,13 +59,13 @@ swift build -c release
 Run the executable directly:
 
 ```bash
-.build/release/MDDesignMacOS
+.build/release/EditMDForMac
 ```
 
 Open a file from Terminal:
 
 ```bash
-.build/release/MDDesignMacOS /path/to/notes.md
+.build/release/EditMDForMac /path/to/notes.md
 ```
 
 ## Package As `.app`
@@ -78,23 +78,23 @@ chmod +x scripts/package_app.sh
 The app bundle will be created here:
 
 ```text
-dist/MD-design-macOS-vX.Y.Z.app
+dist/Edit MD for Mac-vX.Y.Z.app
 ```
 
 The script also creates a Finder-friendly archive:
 
 ```text
-dist/MD-design-macOS-vX.Y.Z.zip
+dist/Edit MD for Mac-vX.Y.Z.zip
 ```
 
 It also creates a drag-to-install disk image:
 
 ```text
-dist/MD-design-macOS-vX.Y.Z.dmg
+dist/Edit MD for Mac-vX.Y.Z.dmg
 ```
 
 For normal installation, open the `.dmg` and drag the app into `Applications`.
-For versioned releases, the app bundle name includes the version, for example `MD-design-macOS-v2.0.5.app`.
+For versioned releases, the app bundle name includes the version, for example `Edit MD for Mac-v2.0.7.app`.
 
 ## Unsigned Local Build
 
@@ -102,7 +102,7 @@ Use this for personal/offline use on your own Mac:
 
 ```bash
 ./scripts/package_app.sh
-open "dist/MD-design-macOS-vX.Y.Z.app"
+open "dist/Edit MD for Mac-vX.Y.Z.app"
 ```
 
 This creates a local ad-hoc signed app bundle, which keeps macOS resource validation happy but is still not Developer ID notarized.
@@ -126,7 +126,7 @@ export APP_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx"
 
 The script:
 
-1. Builds and packages `dist/MD-design-macOS-vX.Y.Z.app`
+1. Builds and packages `dist/Edit MD for Mac-vX.Y.Z.app`
 2. Signs the app with hardened runtime
 3. Zips it for notarization
 4. Submits it to Apple notarization

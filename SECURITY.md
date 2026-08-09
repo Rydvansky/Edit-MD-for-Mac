@@ -12,4 +12,4 @@ Open a private security advisory on GitHub if available, or create an issue with
 
 ## Scope
 
-MD_View-Edit_macOS is a local macOS app for opening Markdown and text files. It should not require network access for normal use.
+Edit MD for Mac is a local macOS app for opening Markdown and text files. It should not require network access for normal use.

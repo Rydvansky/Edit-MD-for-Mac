@@ -16,9 +16,20 @@ final class DocumentStore: ObservableObject {
     @Published var referenceLinks: [String: String] = [:]
     @Published var documentBaseURL: URL?
     @Published var error: AppError?
-    @Published var fontSize: CGFloat = 15
+    @Published var fontSize: CGFloat = 15 {
+        didSet {
+            UserDefaults.standard.set(Double(fontSize), forKey: "editorFontSize")
+        }
+    }
     @Published var fileSizeDescription = ""
     @Published var previewNotice: String?
+
+    init() {
+        let saved = UserDefaults.standard.double(forKey: "editorFontSize")
+        if saved >= 11 && saved <= 28 {
+            fontSize = saved
+        }
+    }
 
     private let previewByteLimit = 1_500_000
     private let largeFileNoticeLimit = 5_000_000
@@ -49,11 +60,11 @@ final class DocumentStore: ObservableObject {
         displayNameOverride ?? fileURL?.lastPathComponent ?? "Untitled Markdown"
     }
 
-    /// Full window title: "<file> — MD Design". Driven declaratively via
+    /// Full window title: "<file> — Edit MD for Mac". Driven declaratively via
     /// .navigationTitle in DocumentWindowView (SwiftUI WindowGroup owns
-    /// NSWindow.title and clobbers imperative sets — the v2.0.5 title bug).
+    /// NSWindow.title and would clobber imperative sets — the v2.0.5 title bug).
     var windowTitle: String {
-        "\(currentFileName) — MD Design"
+        "\(currentFileName) — Edit MD for Mac"
     }
 
     var canSave: Bool {
