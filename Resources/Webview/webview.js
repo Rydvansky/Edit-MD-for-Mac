@@ -205520,6 +205520,7 @@ ${element3.innerHTML}
   }
   function applyTheme(setting) {
     if (setting === "auto") setting = "sync-ide";
+    if (setting === "os") setting = "sync-os";
     _currentSetting = setting;
     const resolved = resolveTheme(setting);
     const html2 = document.documentElement;
@@ -246720,6 +246721,12 @@ ${content}
     "\u{1F4CA}",
     "\u{1F381}"
   ];
+  // Top-level block position for the current selection — used by the
+  // "Turn into" entries that delegate to the block picker's converters.
+  function turnIntoBlockPos(editor) {
+    const { $from } = editor.state.selection;
+    return $from.depth >= 1 ? $from.before(1) : 0;
+  }
   var TURN_INTO = [
     {
       id: "paragraph",
@@ -246748,6 +246755,27 @@ ${content}
       iconHtml: `<span class="bm-into-text" style="font-weight:600;font-size:12px;letter-spacing:-.3px">H3</span>`,
       isActive: (e3) => e3.isActive("heading", { level: 3 }),
       apply: (e3) => e3.chain().focus().setHeading({ level: 3 }).run()
+    },
+    {
+      id: "heading4",
+      label: "Heading 4",
+      iconHtml: `<span class="bm-into-text" style="font-weight:600;font-size:11px;letter-spacing:-.2px">H4</span>`,
+      isActive: (e3) => e3.isActive("heading", { level: 4 }),
+      apply: (e3) => e3.chain().focus().setHeading({ level: 4 }).run()
+    },
+    {
+      id: "heading5",
+      label: "Heading 5",
+      iconHtml: `<span class="bm-into-text" style="font-weight:600;font-size:10px;letter-spacing:-.1px">H5</span>`,
+      isActive: (e3) => e3.isActive("heading", { level: 5 }),
+      apply: (e3) => e3.chain().focus().setHeading({ level: 5 }).run()
+    },
+    {
+      id: "heading6",
+      label: "Heading 6",
+      iconHtml: `<span class="bm-into-text" style="font-weight:600;font-size:9px">H6</span>`,
+      isActive: (e3) => e3.isActive("heading", { level: 6 }),
+      apply: (e3) => e3.chain().focus().setHeading({ level: 6 }).run()
     },
     {
       id: "bulletList",
@@ -246783,6 +246811,62 @@ ${content}
       iconHtml: `<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M71.68,97.22,34.74,128l36.94,30.78a12,12,0,1,1-15.36,18.44l-48-40a12,12,0,0,1,0-18.44l48-40A12,12,0,0,1,71.68,97.22Zm176,21.56-48-40a12,12,0,1,0-15.36,18.44L221.26,128l-36.94,30.78a12,12,0,1,0,15.36,18.44l48-40a12,12,0,0,0,0-18.44ZM164.1,28.72a12,12,0,0,0-15.38,7.18l-64,176a12,12,0,0,0,7.18,15.37A11.79,11.79,0,0,0,96,228a12,12,0,0,0,11.28-7.9l64-176A12,12,0,0,0,164.1,28.72Z"/></svg>`,
       isActive: (e3) => e3.isActive("codeBlock"),
       apply: (e3) => e3.chain().focus().toggleCodeBlock().run()
+    },
+    {
+      id: "callout",
+      label: "Callout",
+      iconHtml: `<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M176,232a8,8,0,0,1-8,8H88a8,8,0,0,1,0-16h80A8,8,0,0,1,176,232Zm40-128a87.55,87.55,0,0,1-33.64,69.21A16.24,16.24,0,0,0,176,186v6a16,16,0,0,1-16,16H96a16,16,0,0,1-16-16v-6a16,16,0,0,0-6.23-12.66A87.59,87.59,0,0,1,40,104.49C39.74,56.83,78.26,17.14,125.88,16A88,88,0,0,1,216,104Zm-16,0a72,72,0,0,0-73.74-72c-39,1-70.47,33.43-70.26,72.39a71.65,71.65,0,0,0,27.64,56.3A32,32,0,0,1,96,186v6h64v-6a32.15,32.15,0,0,0,12.47-25.35A71.65,71.65,0,0,0,200,104Zm-16.11-9.34a57.6,57.6,0,0,0-46.56-46.55,8,8,0,0,0-2.66,15.78c16.57,2.79,30.63,16.85,33.44,33.45A8,8,0,0,0,176,104a9,9,0,0,0,1.35-.11A8,8,0,0,0,183.89,94.66Z"/></svg>`,
+      isActive: (e3) => e3.isActive("callout"),
+      apply: (e3) => replaceBlockWith(e3, turnIntoBlockPos(e3), "callout", { type: "note", emoji: "\u{1F4A1}" })
+    },
+    {
+      id: "toggle",
+      label: "Toggle",
+      iconHtml: `<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></svg>`,
+      isActive: (e3) => e3.isActive("toggle"),
+      apply: (e3) => convertToToggle(e3, turnIntoBlockPos(e3))
+    },
+    {
+      id: "table",
+      label: "Table",
+      iconHtml: `<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M224,48H32a8,8,0,0,0-8,8V192a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A8,8,0,0,0,224,48ZM40,112H80v32H40Zm56,0H216v32H96ZM216,64V96H40V64ZM40,160H80v32H40Zm176,32H96V160H216v32Z"/></svg>`,
+      isActive: (e3) => e3.isActive("table"),
+      apply: (e3) => convertToTable(e3, turnIntoBlockPos(e3))
+    },
+    {
+      id: "mermaid",
+      label: "Mermaid diagram",
+      iconHtml: `<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M240,192h-8V56a16,16,0,0,0-16-16H40A16,16,0,0,0,24,56V192H16a8,8,0,0,0,0,16H240a8,8,0,0,0,0-16ZM40,56H216V192H200V168a8,8,0,0,0-8-8H120a8,8,0,0,0-8,8v24H72V88H184v48a8,8,0,0,0,16,0V80a8,8,0,0,0-8-8H64a8,8,0,0,0-8,8V192H40ZM184,192H128V176h56Z"/></svg>`,
+      isActive: (e3) => e3.isActive("codeBlock", { language: "mermaid" }),
+      apply: (e3) => replaceBlockWith(e3, turnIntoBlockPos(e3), "codeBlock", { language: "mermaid" })
+    },
+    {
+      id: "image",
+      label: "Image",
+      iconHtml: `<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V158.75l-26.07-26.06a16,16,0,0,0-22.63,0l-20,20-44-44a16,16,0,0,0-22.62,0L40,149.37V56ZM40,172l52-52,80,80H40Zm176,28H194.63l-36-36,20-20L216,181.38V200ZM144,100a12,12,0,1,1,12,12A12,12,0,0,1,144,100Z"/></svg>`,
+      isActive: (e3) => e3.isActive("image"),
+      apply: (e3) => uploadImageFromComputer(e3, turnIntoBlockPos(e3))
+    },
+    {
+      id: "board-kanban",
+      label: "Board: Kanban",
+      iconHtml: `<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM104,200H40V56h64Zm32-144v144H120V56Zm80,0V200H152V56Z"/></svg>`,
+      isActive: () => false,
+      apply: (e3) => convertToKanbanBoard(e3, turnIntoBlockPos(e3))
+    },
+    {
+      id: "board-table",
+      label: "Board: Table",
+      iconHtml: `<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM104,200H40V56h64Zm32-144v144H120V56Zm80,0V200H152V56Z"/></svg>`,
+      isActive: () => false,
+      apply: (e3) => convertTableToBoard(e3, turnIntoBlockPos(e3))
+    },
+    {
+      id: "whiteboard",
+      label: "Whiteboard",
+      iconHtml: `<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M240,192h-8V56a16,16,0,0,0-16-16H40A16,16,0,0,0,24,56V192H16a8,8,0,0,0,0,16H240a8,8,0,0,0,0-16ZM40,56H216V192H200V168a8,8,0,0,0-8-8H120a8,8,0,0,0-8,8v24H72V88H184v48a8,8,0,0,0,16,0V80a8,8,0,0,0-8-8H64a8,8,0,0,0-8,8V192H40ZM184,192H128V176h56Z"/></svg>`,
+      isActive: () => false,
+      apply: (e3) => convertToWhiteboard(e3, turnIntoBlockPos(e3))
     },
     {
       id: "horizontalRule",
@@ -248285,6 +248369,9 @@ ${content}
     h1: `<span class="bm-into-text" style="font-weight:800;font-size:14px;letter-spacing:-.5px">H1</span>`,
     h2: `<span class="bm-into-text" style="font-weight:700;font-size:13px;letter-spacing:-.4px">H2</span>`,
     h3: `<span class="bm-into-text" style="font-weight:600;font-size:12px;letter-spacing:-.3px">H3</span>`,
+    h4: `<span class="bm-into-text" style="font-weight:600;font-size:11px;letter-spacing:-.2px">H4</span>`,
+    h5: `<span class="bm-into-text" style="font-weight:600;font-size:10px;letter-spacing:-.1px">H5</span>`,
+    h6: `<span class="bm-into-text" style="font-weight:600;font-size:9px">H6</span>`,
     bullet: `<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M76,64A12,12,0,0,1,88,52H216a12,12,0,0,1,0,24H88A12,12,0,0,1,76,64Zm140,52H88a12,12,0,0,0,0,24H216a12,12,0,0,0,0-24Zm0,64H88a12,12,0,0,0,0,24H216a12,12,0,0,0,0-24ZM44,112a16,16,0,1,0,16,16A16,16,0,0,0,44,112Zm0-64A16,16,0,1,0,60,64,16,16,0,0,0,44,48Zm0,128a16,16,0,1,0,16,16A16,16,0,0,0,44,176Z"/></svg>`,
     ordered: `<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M228,128a12,12,0,0,1-12,12H116a12,12,0,0,1,0-24H216A12,12,0,0,1,228,128ZM116,76H216a12,12,0,0,0,0-24H116a12,12,0,0,0,0,24ZM216,180H116a12,12,0,0,0,0,24H216a12,12,0,0,0,0-24ZM44,59.31V104a12,12,0,0,0,24,0V40A12,12,0,0,0,50.64,29.27l-16,8a12,12,0,0,0,9.36,22Zm39.73,96.86a27.7,27.7,0,0,0-11.2-18.63A28.89,28.89,0,0,0,32.9,143a27.71,27.71,0,0,0-4.17,7.54,12,12,0,0,0,22.55,8.21,4,4,0,0,1,.58-1,4.78,4.78,0,0,1,6.5-.82,3.82,3.82,0,0,1,1.61,2.6,3.63,3.63,0,0,1-.77,2.77l-.13.17L30.39,200.82A12,12,0,0,0,40,220H72a12,12,0,0,0,0-24H64l14.28-19.11A27.48,27.48,0,0,0,83.73,156.17Z"/></svg>`,
     task: `<svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M228,128a12,12,0,0,1-12,12H128a12,12,0,0,1,0-24h88A12,12,0,0,1,228,128ZM128,76h88a12,12,0,0,0,0-24H128a12,12,0,0,0,0,24Zm88,104H128a12,12,0,0,0,0,24h88a12,12,0,0,0,0-24ZM79.51,39.51,56,63l-7.51-7.52a12,12,0,0,0-17,17l16,16a12,12,0,0,0,17,0l32-32a12,12,0,0,0-17-17Zm0,64L56,127l-7.51-7.52a12,12,0,1,0-17,17l16,16a12,12,0,0,0,17,0l32-32a12,12,0,0,0-17-17Zm0,64L56,191l-7.51-7.52a12,12,0,1,0-17,17l16,16a12,12,0,0,0,17,0l32-32a12,12,0,0,0-17-17Z"/></svg>`,
@@ -248348,6 +248435,63 @@ ${content}
       isActive: (t4, a2) => t4 === "heading" && a2.level === 3,
       insert: (editor, pos) => editor.chain().focus().insertContentAt(pos, { type: "heading", attrs: { level: 3 }, content: [] }).run(),
       convert: (editor, blockPos) => replaceBlockWith(editor, blockPos, "heading", { level: 3 })
+    },
+    {
+      id: "heading4",
+      label: "Heading 4",
+      description: "Level-4 heading",
+      iconHtml: ICO.h4,
+      section: "text",
+      aliases: ["h4"],
+      isActive: (t4, a2) => t4 === "heading" && a2.level === 4,
+      insert: (editor, pos) => editor.chain().focus().insertContentAt(pos, { type: "heading", attrs: { level: 4 }, content: [] }).run(),
+      convert: (editor, blockPos) => replaceBlockWith(editor, blockPos, "heading", { level: 4 })
+    },
+    {
+      id: "heading5",
+      label: "Heading 5",
+      description: "Level-5 heading",
+      iconHtml: ICO.h5,
+      section: "text",
+      aliases: ["h5"],
+      isActive: (t4, a2) => t4 === "heading" && a2.level === 5,
+      insert: (editor, pos) => editor.chain().focus().insertContentAt(pos, { type: "heading", attrs: { level: 5 }, content: [] }).run(),
+      convert: (editor, blockPos) => replaceBlockWith(editor, blockPos, "heading", { level: 5 })
+    },
+    {
+      id: "heading6",
+      label: "Heading 6",
+      description: "Level-6 heading",
+      iconHtml: ICO.h6,
+      section: "text",
+      aliases: ["h6"],
+      isActive: (t4, a2) => t4 === "heading" && a2.level === 6,
+      insert: (editor, pos) => editor.chain().focus().insertContentAt(pos, { type: "heading", attrs: { level: 6 }, content: [] }).run(),
+      convert: (editor, blockPos) => replaceBlockWith(editor, blockPos, "heading", { level: 6 })
+    },
+    {
+      id: "inlineCode",
+      label: "Inline code",
+      description: "Monospaced `code` span",
+      iconHtml: ICO.code,
+      section: "text",
+      aliases: ["code", "mono", "monospace", "backtick", "inline code"],
+      isActive: () => false,
+      // Empty paragraph + stored code mark: whatever the user types next is `mono`.
+      insert: (editor, pos) => editor.chain().focus().insertContentAt(pos, { type: "paragraph", content: [] }).toggleCode().run(),
+      // Convert: mark the whole block's text as inline code.
+      convert: (editor, blockPos) => {
+        editor.chain().focus().command(({ tr: tr2, state: state4, dispatch: dispatch3 }) => {
+          const node2 = tr2.doc.nodeAt(blockPos);
+          const codeMark = state4.schema.marks.code;
+          if (!node2 || !node2.isTextblock || !codeMark) return false;
+          const from3 = blockPos + 1;
+          const to = blockPos + node2.nodeSize - 1;
+          if (from3 >= to) return false;
+          if (dispatch3) tr2.addMark(from3, to, codeMark.create());
+          return true;
+        }).run();
+      }
     },
     {
       id: "bulletList",
@@ -248621,6 +248765,9 @@ ${content}
     heading1: "#",
     heading2: "##",
     heading3: "###",
+    heading4: "####",
+    heading5: "#####",
+    heading6: "######",
     bulletList: "-",
     orderedList: "1.",
     taskList: "[]",
@@ -249946,6 +250093,7 @@ ${content}
     italic: `<svg width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M204,56a12,12,0,0,1-12,12H160.65l-40,120H144a12,12,0,0,1,0,24H64a12,12,0,0,1,0-24H95.35l40-120H112a12,12,0,0,1,0-24h80A12,12,0,0,1,204,56Z"/></svg>`,
     strike: `<svg width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M228,128a12,12,0,0,1-12,12H185.86A41.48,41.48,0,0,1,196,168c0,14.45-7.81,28.32-21.43,38.05C162,215.05,145.44,220,128,220s-34-4.95-46.57-13.95C67.81,196.32,60,182.45,60,168a12,12,0,0,1,24,0c0,15.18,20.15,28,44,28s44-12.82,44-28c0-12.76-9.3-20.18-35.35-28H40a12,12,0,0,1,0-24H216A12,12,0,0,1,228,128ZM75.11,100a12,12,0,0,0,12-12c0-16,17.58-28,40.89-28,17.36,0,31.37,6.65,37.48,17.78a12,12,0,0,0,21-11.56C176.13,47.3,154.25,36,128,36,91,36,63.11,58.35,63.11,88A12,12,0,0,0,75.11,100Z"/></svg>`,
     code: `<svg width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M71.68,97.22,34.74,128l36.94,30.78a12,12,0,1,1-15.36,18.44l-48-40a12,12,0,0,1,0-18.44l48-40A12,12,0,0,1,71.68,97.22Zm176,21.56-48-40a12,12,0,1,0-15.36,18.44L221.26,128l-36.94,30.78a12,12,0,1,0,15.36,18.44l48-40a12,12,0,0,0,0-18.44Z"/></svg>`,
+    highlight: `<svg width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M252.49,107.51a12,12,0,0,0-17,0L192,151,113,72l43.52-43.51a12,12,0,0,0-17-17L93.17,57.86a20,20,0,0,0-4.72,20.72L69.17,97.86a20,20,0,0,0,0,28.28L71,128,15.51,183.51a12,12,0,0,0,4.7,19.87l72,24A11.8,11.8,0,0,0,96,228a12,12,0,0,0,8.49-3.52L136,193l1.86,1.86a20,20,0,0,0,28.28,0l19.27-19.27a20.27,20.27,0,0,0,6.59,1.13,19.86,19.86,0,0,0,14.14-5.86l46.35-46.34A12,12,0,0,0,252.49,107.51ZM92.76,202.27,46.21,186.76,88,145l31,31ZM152,175,96.49,119.52h0L89,112l15-15,63,63Z"/></svg>`,
     link: `<svg width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M117.18,188.74a12,12,0,0,1,0,17l-5.12,5.12A58.26,58.26,0,0,1,70.6,228h0A58.62,58.62,0,0,1,29.14,127.92L63.89,93.17a58.64,58.64,0,0,1,98.56,28.11,12,12,0,1,1-23.37,5.44,34.65,34.65,0,0,0-58.22-16.58L46.11,144.89A34.62,34.62,0,0,0,70.57,204h0a34.41,34.41,0,0,0,24.49-10.14l5.11-5.12A12,12,0,0,1,117.18,188.74ZM226.83,45.17a58.65,58.65,0,0,0-82.93,0l-5.11,5.11a12,12,0,0,0,17,17l5.12-5.12a34.63,34.63,0,1,1,49,49L175.1,145.86A34.39,34.39,0,0,1,150.61,156h0a34.63,34.63,0,0,1-33.69-26.72,12,12,0,0,0-23.38,5.44A58.64,58.64,0,0,0,150.56,180h.05a58.28,58.28,0,0,0,41.47-17.17l34.75-34.75a58.62,58.62,0,0,0,0-82.91Z"/></svg>`,
     bullet: `<svg width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M76,64A12,12,0,0,1,88,52H216a12,12,0,0,1,0,24H88A12,12,0,0,1,76,64Zm140,52H88a12,12,0,0,0,0,24H216a12,12,0,0,0,0-24Zm0,64H88a12,12,0,0,0,0,24H216a12,12,0,0,0,0-24ZM44,112a16,16,0,1,0,16,16A16,16,0,0,0,44,112Zm0-64A16,16,0,1,0,60,64,16,16,0,0,0,44,48Zm0,128a16,16,0,1,0,16,16A16,16,0,0,0,44,176Z"/></svg>`,
     number: `<svg width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M228,128a12,12,0,0,1-12,12H116a12,12,0,0,1,0-24H216A12,12,0,0,1,228,128ZM116,76H216a12,12,0,0,0,0-24H116a12,12,0,0,0,0,24ZM216,180H116a12,12,0,0,0,0,24H216a12,12,0,0,0,0-24ZM44,59.31V104a12,12,0,0,0,24,0V40A12,12,0,0,0,50.64,29.27l-16,8a12,12,0,0,0,9.36,22Zm39.73,96.86a27.7,27.7,0,0,0-11.2-18.63A28.89,28.89,0,0,0,32.9,143a27.71,27.71,0,0,0-4.17,7.54,12,12,0,0,0,22.55,8.21,4,4,0,0,1,.58-1,4.78,4.78,0,0,1,6.5-.82,3.82,3.82,0,0,1,1.61,2.6,3.63,3.63,0,0,1-.77,2.77l-.13.17L30.39,200.82A12,12,0,0,0,40,220H72a12,12,0,0,0,0-24H64l14.28-19.11A27.48,27.48,0,0,0,83.73,156.17Z"/></svg>`,
@@ -249993,6 +250141,34 @@ ${content}
   }
   function isCodeActive(sel) {
     return isWrapped(sel, "`");
+  }
+  function isHighlightActive(sel) {
+    return isWrapped(sel, "==");
+  }
+  var SRC_COLOR_OPEN_RE = /<span style="color:[^"]*">$/;
+  var SRC_COLOR_CLOSE = "</span>";
+  function isSourceColorActive(sel) {
+    const before = sel.fullText.slice(0, sel.fOff);
+    const after = sel.fullText.slice(sel.tOff);
+    return SRC_COLOR_OPEN_RE.test(before) && after.startsWith(SRC_COLOR_CLOSE);
+  }
+  function applySourceColor(editor, value2) {
+    const sel = getSelection2(editor);
+    if (!sel) return;
+    const before = sel.fullText.slice(0, sel.fOff);
+    const after = sel.fullText.slice(sel.tOff);
+    const m3 = SRC_COLOR_OPEN_RE.exec(before);
+    const wrapped = m3 && after.startsWith(SRC_COLOR_CLOSE);
+    if (!value2) {
+      if (wrapped) replaceRange2(editor, sel.from - m3[0].length, sel.to + SRC_COLOR_CLOSE.length, sel.text);
+      return;
+    }
+    const open2 = `<span style="color:${value2}">`;
+    if (wrapped) {
+      replaceRange2(editor, sel.from - m3[0].length, sel.to + SRC_COLOR_CLOSE.length, open2 + sel.text + SRC_COLOR_CLOSE);
+      return;
+    }
+    replaceRange2(editor, sel.from, sel.to, open2 + sel.text + SRC_COLOR_CLOSE);
   }
   function selectionLineRange(sel) {
     const text6 = sel.fullText;
@@ -250151,6 +250327,30 @@ ${content}
       makeBtn(ICON3.code, "Inline code (`\u2026`)", () => toggleWrap2(editor, "`")),
       isCodeActive
     ));
+    row.appendChild(reg(
+      makeBtn(ICON3.highlight, "Highlight (==…==)", () => toggleWrap2(editor, "==")),
+      isHighlightActive
+    ));
+    const swatch = document.createElement("div");
+    swatch.className = "bm-swatch-panel";
+    swatch.innerHTML = TEXT_COLORS.map(
+      (c4) => c4.value ? `<button class="bm-swatch-item" data-color="${c4.value}" style="background:${c4.value}" data-tip="${c4.label}"></button>` : `<button class="bm-swatch-item bm-swatch-clear" data-color="" data-tip="${c4.label}">⊘</button>`
+    ).join("");
+    swatch.addEventListener("mousedown", (e3) => {
+      const item = e3.target.closest("[data-color]");
+      if (!item) return;
+      e3.preventDefault();
+      applySourceColor(editor, item.dataset.color);
+      if (item.dataset.color) colorBtn.querySelector("rect")?.setAttribute("fill", item.dataset.color);
+      swatch.classList.remove("open");
+    });
+    el2.appendChild(swatch);
+    const colorBtn = makeBtn(
+      `<svg width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M216,208a12,12,0,0,1-11.41-7.97L180.09,148H75.91L51.41,200.03A12,12,0,0,1,40,208a12,12,0,0,1-11.41-15.97L113.09,12.97a12,12,0,0,1,21.82,0l84.5,179.06A12,12,0,0,1,216,208ZM87.09,124h81.82L128,42.84Z"/><rect x="32" y="224" width="192" height="20" rx="6" fill="#e55757"/></svg>`,
+      "Text color",
+      () => swatch.classList.toggle("open")
+    );
+    row.appendChild(reg(colorBtn, isSourceColorActive));
     const linkBtn = makeBtn(ICON3.link, "Link [text](url)", () => {
     });
     linkBtn.dataset.action = "link";
@@ -250174,6 +250374,18 @@ ${content}
     row.appendChild(reg(
       makeBtn(`<span class="bm-into-text" style="font-weight:600;font-size:11px">H3</span>`, "Heading 3 (###)", setHeadingLevel(3)),
       (sel) => allLinesMatch(sel, /^\s*###\s+/)
+    ));
+    row.appendChild(reg(
+      makeBtn(`<span class="bm-into-text" style="font-weight:600;font-size:10px">H4</span>`, "Heading 4 (####)", setHeadingLevel(4)),
+      (sel) => allLinesMatch(sel, /^\s*####\s+/)
+    ));
+    row.appendChild(reg(
+      makeBtn(`<span class="bm-into-text" style="font-weight:600;font-size:9px">H5</span>`, "Heading 5 (#####)", setHeadingLevel(5)),
+      (sel) => allLinesMatch(sel, /^\s*#####\s+/)
+    ));
+    row.appendChild(reg(
+      makeBtn(`<span class="bm-into-text" style="font-weight:600;font-size:8px">H6</span>`, "Heading 6 (######)", setHeadingLevel(6)),
+      (sel) => allLinesMatch(sel, /^\s*######\s+/)
     ));
     row.appendChild(makeDivider());
     row.appendChild(reg(
@@ -252599,42 +252811,30 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
     });
     pageWidthRow.addEventListener("click", exitFullWidth);
     const themeSeg = document.getElementById("theme-seg");
-    const syncSeg = document.getElementById("sync-seg");
-    const syncBtns = Array.from(syncSeg.querySelectorAll(".seg-btn"));
     let manualTheme = "light";
-    let syncMode = "off";
     function applyThemeState() {
       const sourceForcesDark = sourceMode && document.documentElement.classList.contains("source-always-dark");
       if (sourceForcesDark) applyTheme("dark");
-      else if (syncMode === "os") applyTheme("sync-os");
-      else if (syncMode === "ide") applyTheme("sync-ide");
+      else if (manualTheme === "os") applyTheme("sync-os");
       else applyTheme(manualTheme);
       segActivate(themeBtns, "theme", manualTheme);
-      segActivate(syncBtns, "sync", syncMode);
-      themeSeg.classList.toggle("disabled", syncMode !== "off" || sourceForcesDark);
+      themeSeg.classList.toggle("disabled", sourceForcesDark);
       refreshDefaultsButtons();
     }
     function setManualTheme(theme) {
       manualTheme = theme;
-      syncMode = "off";
-      applyThemeState();
-    }
-    function setSyncMode(mode) {
-      syncMode = mode;
       applyThemeState();
     }
     function loadInitialTheme(setting) {
-      if (setting === "auto" || setting === "sync-ide") {
-        syncMode = "ide";
-      } else if (setting === "sync-os") {
-        syncMode = "os";
-      } else {
-        syncMode = "off";
+      if (setting === "sync-os" || setting === "os") {
+        manualTheme = "os";
+      } else if (setting === "light" || setting === "claude" || setting === "dark") {
         manualTheme = setting;
+      } else {
+        manualTheme = "light";
       }
       applyThemeState();
     }
-    syncBtns.forEach((b3) => b3.addEventListener("click", () => setSyncMode(b3.dataset.sync)));
     viewBtns.forEach((b3) => b3.addEventListener("click", () => setView(b3.dataset.view)));
     themeBtns.forEach((b3) => b3.addEventListener("click", () => setManualTheme(b3.dataset.theme)));
     fontBtns.forEach((b3) => b3.addEventListener("click", () => setFont(b3.dataset.font)));
@@ -252979,7 +253179,7 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
     setFont("sans");
     function currentDefaults() {
       return {
-        theme: syncMode === "os" ? "sync-os" : syncMode === "ide" ? "sync-ide" : manualTheme,
+        theme: manualTheme,
         font: FONT_CLASSES.find((c4) => editorEl.classList.contains(c4))?.replace("font-", "") ?? "sans",
         textSize: TEXT_CLASSES.find((c4) => editorEl.classList.contains(c4))?.replace("text-", "") ?? "m",
         pageWidth: parseInt(widthSlider.value, 10) || DEFAULT_WIDTH_PX,

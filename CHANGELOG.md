@@ -10,6 +10,18 @@ This project follows semantic versioning: `MAJOR.MINOR.PATCH`.
 
 - Renamed the app to Edit MD for Mac. The app bundle, executable, Swift package, release artifacts, window titles, documentation, screenshots, and GitHub repository now use the new name.
 
+## [2.0.9] - 2026-08-09
+
+### Added
+
+- More block actions: Heading 4–6, callouts, toggles, tables, Mermaid diagrams, images, Kanban/table boards, and whiteboards.
+- Inline text highlighting and text-color controls in the editor.
+
+### Changed
+
+- Simplified the preview appearance picker to Light, Claude, Dark, and macOS system appearance.
+- Replaced the app icon with the selected minimal text-lines and overflow-menu mark.
+
 ## [2.0.7] - 2026-08-09
 
 ### Fixed

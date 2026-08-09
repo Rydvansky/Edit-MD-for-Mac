@@ -21,7 +21,7 @@ enum EditorMode: String, CaseIterable, Identifiable {
 /// Persisted in UserDefaults (prefix `mdplus.`) and sent to the webview in the
 /// `init` message, mirroring the `mdEditorPlus.*` VS Code settings.
 struct WebEditorSettings: Equatable {
-    var theme = "light"            // light | sepia | claude | dark | sync-os (sync-ide falls back to light outside VS Code)
+    var theme = "light"            // light | claude | dark | os (legacy "sepia"/"sync-os"/"sync-ide" are migrated webview-side)
     var font = "sans"              // sans | serif | mono
     var textSize = "m"             // s | m | l | xl  (14/16/18/20 px)
     var pageWidth = 800
