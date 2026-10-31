@@ -14,6 +14,17 @@ final class DocumentStore: ObservableObject {
     private var pendingSave: Task<Bool, Never>?
     private var openRequest: UUID?
     private var saveRequest: UUID?
+    private var observation: FileObservation?
+    private var diskBaseline: DiskVersion?
+    private var checkTask: Task<Void, Never>?
+    private var checkAgain = false
+    @Published private(set) var externalChange: ExternalChange?
+
+    struct ExternalChange {
+        let token = UUID().uuidString
+        let disk: DiskVersion?
+        let issue: String?
+    }
 
     var text: String { session.text }
     var documentID: UUID { session.id }
@@ -69,16 +80,15 @@ final class DocumentStore: ObservableObject {
         defer { if openRequest == request { isLoading = false } }
         do {
             let loaded = try await Task.detached(priority: .userInitiated) {
-                let data = try Data(contentsOf: url, options: .mappedIfSafe)
-                guard let text = String(data: data, encoding: .utf8) else {
-                    throw CocoaError(.fileReadInapplicableStringEncoding)
-                }
-                return text
+                try DiskAccess.read(url)
             }.value
             guard openRequest == request else { return }
             fileURL = asDemo ? nil : url
             displayNameOverride = asDemo ? url.lastPathComponent : nil
-            session = DocumentSession(text: loaded)
+            session = DocumentSession(text: loaded.text)
+            diskBaseline = asDemo ? nil : loaded
+            externalChange = nil
+            startObservation()
             editor?.loadDocument()
             WindowManager.shared.closeExtraEmptyWindowsSoon()
         } catch { resumeEditing(); showError("Could not open the file.", recovery: error.localizedDescription) }
@@ -110,8 +120,12 @@ final class DocumentStore: ObservableObject {
 
     func save() { Task { _ = await saveDocument() } }
 
+    // The File menu and the conflict banner share the same snapshot and write
+    // safeguards, so Save As always includes the latest editor input.
+    func saveAs() { Task { _ = await saveDocument(asNewFile: true) } }
+
     @discardableResult
-    func saveDocument() async -> Bool {
+    func saveDocument(asNewFile: Bool = false) async -> Bool {
         // Install the queue entry before awaiting, so simultaneous callers serialize.
         let predecessor = pendingSave
         let requestedDocumentID = documentID
@@ -119,7 +133,7 @@ final class DocumentStore: ObservableObject {
         let task = Task { @MainActor in
             if let predecessor { _ = await predecessor.value }
             guard documentID == requestedDocumentID else { return false }
-            return await performSave()
+            return await performSave(asNewFile: asNewFile)
         }
         pendingSave = task
         saveRequest = request
@@ -128,17 +142,23 @@ final class DocumentStore: ObservableObject {
         return result
     }
 
-    private func performSave() async -> Bool {
+    private func performSave(asNewFile: Bool) async -> Bool {
         guard await synchronizeEditor() else { return false }
         let target: URL
-        if let fileURL { target = fileURL }
+        if let fileURL, !asNewFile { target = fileURL }
         else {
             let panel = NSSavePanel()
             panel.allowedContentTypes = [.markdown]
-            panel.nameFieldStringValue = "Untitled.md"
+            panel.directoryURL = fileURL?.deletingLastPathComponent()
+            panel.nameFieldStringValue = asNewFile ? ((currentFileName as NSString).deletingPathExtension + " copy.md") : "Untitled.md"
             panel.prompt = "Save"
             guard panel.runModal() == .OK, let url = panel.url else { return false }
             target = url
+        }
+        let sameFile = fileURL.map { Self.sameFile($0, target) } ?? false
+        if asNewFile && sameFile {
+            showError("Choose a different file.", recovery: "Save your version to a new path to preserve the external version.")
+            return false
         }
         // A save panel can outlive an editor debounce; snapshot again afterwards.
         isSaving = true
@@ -146,21 +166,131 @@ final class DocumentStore: ObservableObject {
         do {
             let snapshot = try await captureEditorSnapshot()
             editor?.setSaveState("saving", revision: snapshot.revision)
-            try await Task.detached(priority: .userInitiated) {
-                try snapshot.markdown.write(to: target, atomically: true, encoding: .utf8)
+            let expected = sameFile ? diskBaseline : try? DiskAccess.read(target)
+            let result = try await Task.detached(priority: .userInitiated) {
+                try DiskAccess.write(snapshot.markdown, to: target, expecting: expected)
             }.value
+            guard documentID == snapshot.documentID else { return false }
+            guard case .written(let written) = result else {
+                editor?.setSaveState("failed", revision: session.revision)
+                if sameFile {
+                    if !isDirty { isSaving = false; await checkDisk() }
+                    else if case .changed(let current) = result { presentExternal(current, issue: current == nil ? "The file was removed from disk." : nil) }
+                } else { showError("The destination changed.", recovery: "Choose another path to save your version safely.") }
+                resumeEditing()
+                return false
+            }
+            diskBaseline = written
+            externalChange = nil
+            editor?.clearComparison()
             guard documentID == snapshot.documentID else { return true }
             fileURL = target
             displayNameOverride = nil
             session.didSave(snapshot)
+            startObservation()
+            editor?.setBaseline(snapshot.markdown, revision: snapshot.revision)
             editor?.updateContext()
             editor?.setSaveState("saved", revision: snapshot.revision)
             return true
         } catch {
             editor?.setSaveState("failed", revision: session.revision)
-            showError("Could not save the file.", recovery: error.localizedDescription)
+            if sameFile {
+                presentExternal(nil, issue: "The file could not be checked or saved. Save your version as a new file.")
+                resumeEditing()
+            } else { showError("Could not save the file.", recovery: error.localizedDescription) }
             return false
         }
+    }
+
+    static func sameFile(_ lhs: URL, _ rhs: URL) -> Bool {
+        lhs.standardizedFileURL.resolvingSymlinksInPath() == rhs.standardizedFileURL.resolvingSymlinksInPath()
+    }
+
+    private func startObservation() {
+        observation = nil
+        guard let url = fileURL else { return }
+        observation = FileObservation(url: url) { [weak self] in
+            Task { @MainActor [weak self] in self?.requestDiskCheck() }
+        }
+    }
+
+    func requestDiskCheck() {
+        if checkTask != nil { checkAgain = true; return }
+        checkTask = Task {
+            repeat {
+                checkAgain = false
+                await checkDisk()
+            } while checkAgain && !Task.isCancelled
+            checkTask = nil
+        }
+    }
+
+    /// Also called by focus/wake recovery. Never replace a dirty editor.
+    func checkDisk() async {
+        guard let url = fileURL, !isSaving, !isLoading else { return }
+        let id = documentID
+        let baselineAtStart = diskBaseline
+        do {
+            let version = try await Task.detached(priority: .utility) { try DiskAccess.read(url) }.value
+            guard documentID == id, fileURL == url, !isSaving, diskBaseline == baselineAtStart else { return }
+            guard version != diskBaseline else {
+                if externalChange != nil { externalChange = nil; editor?.clearComparison() }
+                return
+            }
+            let current = try await captureEditorSnapshot()
+            guard documentID == id, !isSaving, diskBaseline == baselineAtStart else { return }
+            if !isDirty {
+                do {
+                    let applied = try await editor?.replaceContent(version.text, expectedRevision: current.revision)
+                        ?? EditorSnapshot(documentID: id, revision: session.revision + 1, markdown: version.text)
+                    guard documentID == id else { return }
+                    _ = accept(applied)
+                    session.didSave(applied)
+                    diskBaseline = version
+                    externalChange = nil
+                    editor?.setBaseline(version.text, revision: applied.revision)
+                    editor?.clearComparison()
+                } catch { presentExternal(version, issue: nil) }
+            } else { presentExternal(version, issue: nil) }
+        } catch {
+            guard documentID == id, fileURL == url, !isSaving, diskBaseline == baselineAtStart else { return }
+            presentExternal(nil, issue: FileManager.default.fileExists(atPath: url.path)
+                ? "The file or editor could not be checked. Your local text is preserved."
+                : "The file was removed from disk. Your local text is preserved.")
+        }
+    }
+
+    private func presentExternal(_ disk: DiskVersion?, issue: String?) {
+        if externalChange?.disk == disk, externalChange?.issue == issue, externalChange != nil { return }
+        let change = ExternalChange(disk: disk, issue: issue)
+        externalChange = change
+        editor?.showComparison(base: diskBaseline?.text ?? session.savedText, disk: disk?.text, token: change.token, issue: issue)
+    }
+
+    func restoreComparison() {
+        if let change = externalChange {
+            if !isDirty && change.disk != nil { requestDiskCheck(); return }
+            editor?.showComparison(base: diskBaseline?.text ?? session.savedText, disk: change.disk?.text, token: change.token, issue: change.issue)
+        }
+    }
+
+    func applyExternal(token: String) async {
+        guard let change = externalChange, change.token == token, let shown = change.disk, let url = fileURL else { return }
+        let id = documentID
+        do {
+            let latest = try await Task.detached(priority: .utility) { try DiskAccess.read(url) }.value
+            guard documentID == id, externalChange?.token == token else { return }
+            guard latest == shown else { presentExternal(latest, issue: nil); return }
+            let applied = try await editor?.replaceContent(shown.text, expectedRevision: nil)
+                ?? EditorSnapshot(documentID: id, revision: session.revision + 1, markdown: shown.text)
+            guard documentID == id else { return }
+            _ = accept(applied)
+            session.didSave(applied)
+            diskBaseline = shown
+            externalChange = nil
+            editor?.setBaseline(shown.text, revision: applied.revision)
+            editor?.clearComparison()
+        } catch { presentExternal(nil, issue: "The file could not be checked. Your local text is preserved.") }
     }
 
     func resumeEditing() { editor?.resumeEditing() }

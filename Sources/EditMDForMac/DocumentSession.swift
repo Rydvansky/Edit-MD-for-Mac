@@ -52,6 +52,10 @@ struct DocumentSession {
 protocol DocumentEditor: AnyObject {
     func loadDocument()
     func snapshot(lock: Bool) async throws -> EditorSnapshot?
+    func replaceContent(_ markdown: String, expectedRevision: Int?) async throws -> EditorSnapshot
+    func showComparison(base: String, disk: String?, token: String, issue: String?)
+    func clearComparison()
+    func setBaseline(_ markdown: String, revision: Int)
     func resumeEditing()
     func updateContext()
     func setSaveState(_ state: String, revision: Int)

@@ -12,6 +12,27 @@ This project follows semantic versioning: `MAJOR.MINOR.PATCH`.
 - Match regular Markdown table text to the surrounding editor text size, including the selected text-size setting.
 - Align all Markdown table cell text at the top left, including cells with explicit alignment markers.
 
+## [2.0.13] - 2026-10-31
+
+### Added
+
+- Native File → Save As… with Command-Shift-S. It uses the same latest-editor snapshot and safe write flow as the comparison banner, then makes the new file active.
+
+## [2.0.12] - 2026-10-31
+
+### Added
+
+- Watch external changes using parent-directory events, metadata polling, and focus/wake recovery checks.
+- Automatically refresh clean documents. Dirty documents show two independent panes with local and external changes, yellow additions, red deleted-text overlays, and persistent action banners.
+- Add “Save my version as…” and “Apply changes?”; Apply replaces the complete local document with the displayed disk version, without writing to disk, and supports one Undo.
+- Compare file bytes inside coordinated writes so a missed file event cannot silently overwrite a newer disk version. Deleted or unreadable files preserve the local buffer.
+- Compute comparison using bounded-memory patience anchors in a Web Worker; local highlights refresh after a typing pause.
+
+### Fixed
+
+- Keep Code/Preview switches and decorations out of user edit tracking; retain unchanged raw Markdown until a real edit.
+- Preserve edits in meaningful container attributes, including toggle summaries.
+
 ## [2.0.11] - 2026-10-31
 
 ### Fixed

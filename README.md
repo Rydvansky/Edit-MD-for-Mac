@@ -13,6 +13,7 @@ Current version is stored in [`VERSION`](VERSION).
 
 - Open `.md`, `.markdown`, `.mdown`, `.mkd`, and `.txt` files
 - Edit and save Markdown
+- Save to a new file with File → Save As… (⌘⇧S)
 - Drag and drop local files into the window
 - Editable Markdown preview and source modes in one embedded web editor
 - System, light, and dark appearance modes
@@ -156,6 +157,24 @@ swiftc -DARCHITECTURE_SMOKE Sources/EditMDForMac/*.swift scripts/native_bridge_s
 ```
 
 The editor bundle remains a licensed vendor artifact. Our maintained adapter is `Resources/Webview/native-host.js`. The bundle has two integration hooks: immediate dirty notification and document context/save-indicator access. Preserve these hooks when replacing the vendor bundle.
+
+## External File Changes
+
+The app watches the open file's parent directory and checks again on focus/wake and before writing. Clean documents refresh automatically. With local edits, the editor stays on the left and a read-only Markdown comparison appears on the right. Yellow indicates additions; red struck-out text indicates deletions. The two panes compare independently against the last synchronized disk version.
+
+“Save my version as…” writes the local buffer to a different file and makes that file active. “Apply changes?” replaces the entire local document with the displayed disk version, without writing to disk; one Undo restores the prior local version. You can also copy selected fragments manually. Ordinary Save cannot silently overwrite a changed, deleted, or unreadable file.
+
+Comparison uses a Web Worker and bounded-memory patience anchors. Local highlights refresh after a typing pause. Decorative highlights never enter the Markdown or its undo history. Code/Preview changes are service operations, not user edits.
+
+The right pane shows Markdown source so every external character can be selected and copied. Arbitrary programs that ignore macOS file coordination can still race a write; file notifications alone are not a guarantee of exclusive access.
+
+Additional checks:
+
+```bash
+node scripts/comparison_diff_tests.js
+swiftc -DARCHITECTURE_SMOKE Sources/EditMDForMac/*.swift scripts/external_changes_smoke.swift -o .build-architecture/external-changes-smoke
+.build-architecture/external-changes-smoke
+```
 
 ## Contributing
 

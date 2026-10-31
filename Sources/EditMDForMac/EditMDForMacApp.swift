@@ -78,6 +78,12 @@ struct DocumentCommands: Commands {
             .keyboardShortcut("s", modifiers: .command)
             .disabled(store?.canSave != true)
 
+            Button("Save As…") {
+                store?.saveAs()
+            }
+            .keyboardShortcut("s", modifiers: [.command, .shift])
+            .disabled(store?.canSave != true)
+
             Divider()
 
             Button("Increase Font Size") {

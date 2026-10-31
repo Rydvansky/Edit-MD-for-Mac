@@ -91,6 +91,21 @@ final class WebEditorBridge: NSObject, ObservableObject, DocumentEditor, WKNavig
         return EditorSnapshot(documentID: id, revision: revision, markdown: markdown)
     }
 
+    func replaceContent(_ markdown: String, expectedRevision: Int?) async throws -> EditorSnapshot {
+        guard ready else { throw EditorProtocolError.notReady }
+        var command: [String: Any] = ["type": "replace", "markdown": markdown]
+        if let expectedRevision { command["expectedRevision"] = expectedRevision }
+        let reply = try await send(command)
+        guard let revision = reply["revision"] as? Int, let id = store?.documentID,
+              let text = reply["markdown"] as? String else { throw EditorProtocolError.invalidReply }
+        return EditorSnapshot(documentID: id, revision: revision, markdown: text)
+    }
+    func showComparison(base: String, disk: String?, token: String, issue: String?) {
+        fire(["type": "comparison", "base": base, "disk": disk as Any? ?? NSNull(), "token": token, "issue": issue as Any? ?? NSNull()])
+    }
+    func clearComparison() { fire(["type": "clearComparison"]) }
+    func setBaseline(_ markdown: String, revision: Int) { fire(["type": "baseline", "markdown": markdown, "revision": revision]) }
+
     func resumeEditing() { fire(["type": "unlock"]) }
     func updateContext() { fire(["type": "context", "context": context]) }
     func setSaveState(_ state: String, revision: Int) { fire(["type": "saveState", "state": state, "revision": revision]) }
@@ -123,6 +138,8 @@ final class WebEditorBridge: NSObject, ObservableObject, DocumentEditor, WKNavig
                     guard !Task.isCancelled, store.documentID == id else { return }
                     loadedDocumentID = id
                     ready = true
+                    store.restoreComparison()
+                    store.requestDiskCheck()
                 } catch { if !Task.isCancelled { store.showError("Could not initialize the editor.", recovery: error.localizedDescription) } }
             }
             return
@@ -137,6 +154,9 @@ final class WebEditorBridge: NSObject, ObservableObject, DocumentEditor, WKNavig
                 _ = store.accept(EditorSnapshot(documentID: store.documentID, revision: revision, markdown: markdown))
             }
         case "save": store.save()
+        case "saveLocalAs": store.saveAs()
+        case "applyExternal":
+            if let token = message["token"] as? String { Task { await store.applyExternal(token: token) } }
         case "saveDefaults":
             if let defaults = message["defaults"] as? [String: Any] { settings.apply(dictionary: defaults); settings.save() }
         case "resetDefaults": WebEditorSettings.reset(); settings = WebEditorSettings()

@@ -252698,6 +252698,8 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
     let widthMode = "normal";
     let findBar = null;
     function setView(mode) {
+      const finishNativeMode = window.__nativeEditor?.beginModeChange();
+      try {
       const targetSource = mode === "source";
       if (sourceMode === targetSource && editorReady) {
         segActivate(viewBtns, "view", mode);
@@ -252735,6 +252737,7 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
         const previousEditor = sourceMode ? getEditor() : getSourceEditor();
         findBar.retarget(previousEditor);
       }
+      } finally { finishNativeMode?.(); }
     }
     const fmBadge = document.getElementById("fm-badge");
     const codeBtn = viewBtns.find((b3) => b3.dataset.view === "source") ?? null;
@@ -253406,6 +253409,27 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
         if (editorReady) updateContent(md2);
       }
     };
+    window.NativeEditorIntegration?.install(window.__mdEditorBridge, {
+      Plugin, PluginKey, Decoration, DecorationSet,
+      rich: getEditor, source: getSourceEditor, isSource: () => sourceMode,
+      sourceMarkdown: getSourceMarkdown,
+      parse(markdown) {
+        const split=splitFrontmatter(markdown);
+        const body=preprocessMarkdownBoards(preprocessMarkdownCallouts(split.body));
+        setPendingTableWidths(scanTableDashCounts(body));
+        return createDocument(getEditor().storage.markdown.parser.parse(body),getEditor().schema);
+      },
+      replace(markdown) {
+        flushPendingEdit();
+        currentMarkdown=markdown;
+        rememberSent(markdown);
+        for(const ed of [getEditor(),getSourceEditor()]) if(ed) ed.view.dispatch(ed.state.tr.setMeta(closeHistoryKey,true));
+        updateContent(markdown);
+        if(sourceEditorReady) updateSourceContent(markdown);
+        for(const ed of [getEditor(),getSourceEditor()]) if(ed) ed.view.dispatch(ed.state.tr.setMeta(closeHistoryKey,true));
+        hideConflictBanner();
+      }
+    });
     vscode.postMessage({ type: "ready" });
   }
   document.addEventListener("DOMContentLoaded", init4);

@@ -1,0 +1,19 @@
+#native-disk-pane[hidden],#native-local-toast[hidden]{display:none!important}
+#native-disk-pane{min-width:0;background:var(--bg-primary,#fff);color:var(--text-primary,#222);border-left:1px solid var(--border,#ddd);overflow:auto}
+.native-comparing{overflow:hidden}
+.native-comparing body{height:100vh;overflow:hidden}
+.native-comparing #native-workspace{height:100vh;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.native-comparing #native-local-pane{min-width:0;height:100%;overflow:auto;position:relative}
+.native-comparing #toolbar{position:sticky;top:52px;width:auto;left:auto;right:auto;z-index:40;overflow:visible;flex-wrap:wrap}
+.native-comparing #toolbar>*{opacity:1!important}
+.native-comparing #editor>.ProseMirror{padding-left:28px;padding-right:20px}
+.native-comparing #source-view.width-full{padding-left:24px;padding-right:20px}
+.native-comparison-toast{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:52px;padding:8px 12px;box-sizing:border-box;background:var(--bg-secondary,#f6f6f4);border-bottom:1px solid var(--border,#ddd);font:12px/1.4 -apple-system,BlinkMacSystemFont,sans-serif}
+.native-comparison-toast button{flex-shrink:0;border:1px solid var(--border,#ccc);border-radius:6px;padding:6px 9px;cursor:pointer;background:var(--bg-primary,#fff);color:var(--text-primary,#222);font:inherit}
+.native-comparison-toast button:hover{background:var(--block-hover,#eee)}
+.native-comparison-toast button:disabled{opacity:.45;cursor:default}
+.native-comparison-label{padding:12px;color:var(--text-secondary,#666);font:11px/1.5 -apple-system,sans-serif}
+#native-disk-diff{margin:0;padding:0 16px 40px;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;user-select:text}
+.native-diff-delete{color:#ad2638;background:rgba(220,60,70,.12);text-decoration:line-through}
+.native-diff-add,.native-added,.native-added-block{background:rgba(255,208,40,.28)!important}
+.native-deleted{color:#ad2638;background:rgba(220,60,70,.12);text-decoration:line-through;white-space:pre-wrap;pointer-events:none}
