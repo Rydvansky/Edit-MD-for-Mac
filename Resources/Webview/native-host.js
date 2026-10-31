@@ -54,6 +54,7 @@
       post({ type: "dirty" });
       comparison?.scheduleLocal();
     },
+    conversionError(message) { post({type:"conversionError",message}); },
     beginModeChange() {
       const clean=isClean();muted++;
       return ()=>{muted--;if(clean)rememberClean();comparison?.scheduleLocal();};

@@ -18,6 +18,7 @@ final class DocumentStore: ObservableObject {
     private var diskBaseline: DiskVersion?
     private var checkTask: Task<Void, Never>?
     private var checkAgain = false
+    private var dismissedExternalToken: String?
     @Published private(set) var externalChange: ExternalChange?
 
     struct ExternalChange {
@@ -113,7 +114,7 @@ final class DocumentStore: ObservableObject {
     func synchronizeEditor(lock: Bool = false) async -> Bool {
         do { _ = try await captureEditorSnapshot(lock: lock); return true }
         catch {
-            showError("Could not read the latest editor changes.", recovery: error.localizedDescription)
+            showError("Could not read the latest editor changes.", recovery: Self.editorErrorDetail(error))
             return false
         }
     }
@@ -163,8 +164,14 @@ final class DocumentStore: ObservableObject {
         // A save panel can outlive an editor debounce; snapshot again afterwards.
         isSaving = true
         defer { isSaving = false }
+        let snapshot: EditorSnapshot
+        do { snapshot = try await captureEditorSnapshot() }
+        catch {
+            showError("Could not prepare the local version for saving.", recovery: Self.editorErrorDetail(error))
+            resumeEditing()
+            return false
+        }
         do {
-            let snapshot = try await captureEditorSnapshot()
             editor?.setSaveState("saving", revision: snapshot.revision)
             let expected = sameFile ? diskBaseline : try? DiskAccess.read(target)
             let result = try await Task.detached(priority: .userInitiated) {
@@ -174,8 +181,8 @@ final class DocumentStore: ObservableObject {
             guard case .written(let written) = result else {
                 editor?.setSaveState("failed", revision: session.revision)
                 if sameFile {
-                    if !isDirty { isSaving = false; await checkDisk() }
-                    else if case .changed(let current) = result { presentExternal(current, issue: current == nil ? "The file was removed from disk." : nil) }
+                    if !isDirty { dismissedExternalToken = nil; isSaving = false; await checkDisk() }
+                    else if case .changed(let current) = result { presentExternal(current, issue: current == nil ? "The file was removed from disk." : nil, force: true) }
                 } else { showError("The destination changed.", recovery: "Choose another path to save your version safely.") }
                 resumeEditing()
                 return false
@@ -195,7 +202,7 @@ final class DocumentStore: ObservableObject {
         } catch {
             editor?.setSaveState("failed", revision: session.revision)
             if sameFile {
-                presentExternal(nil, issue: "The file could not be checked or saved. Save your version as a new file.")
+                presentExternal(nil, issue: "The file could not be checked or saved. Save your version as a new file.", force: true)
                 resumeEditing()
             } else { showError("Could not save the file.", recovery: error.localizedDescription) }
             return false
@@ -225,50 +232,82 @@ final class DocumentStore: ObservableObject {
         }
     }
 
-    /// Also called by focus/wake recovery. Never replace a dirty editor.
+    /// Disk data and editor conversion have independent failure paths. A
+    /// readable external version must remain available even when local edits
+    /// cannot currently be serialized for Save.
     func checkDisk() async {
         guard let url = fileURL, !isSaving, !isLoading else { return }
         let id = documentID
         let baselineAtStart = diskBaseline
+        let version: DiskVersion
         do {
-            let version = try await Task.detached(priority: .utility) { try DiskAccess.read(url) }.value
-            guard documentID == id, fileURL == url, !isSaving, diskBaseline == baselineAtStart else { return }
-            guard version != diskBaseline else {
-                if externalChange != nil { externalChange = nil; editor?.clearComparison() }
-                return
-            }
-            let current = try await captureEditorSnapshot()
-            guard documentID == id, !isSaving, diskBaseline == baselineAtStart else { return }
-            if !isDirty {
-                do {
-                    let applied = try await editor?.replaceContent(version.text, expectedRevision: current.revision)
-                        ?? EditorSnapshot(documentID: id, revision: session.revision + 1, markdown: version.text)
-                    guard documentID == id else { return }
-                    _ = accept(applied)
-                    session.didSave(applied)
-                    diskBaseline = version
-                    externalChange = nil
-                    editor?.setBaseline(version.text, revision: applied.revision)
-                    editor?.clearComparison()
-                } catch { presentExternal(version, issue: nil) }
-            } else { presentExternal(version, issue: nil) }
+            version = try await Task.detached(priority: .utility) { try DiskAccess.read(url) }.value
         } catch {
             guard documentID == id, fileURL == url, !isSaving, diskBaseline == baselineAtStart else { return }
             presentExternal(nil, issue: FileManager.default.fileExists(atPath: url.path)
-                ? "The file or editor could not be checked. Your local text is preserved."
+                ? "The file could not be read. Your local text is preserved."
                 : "The file was removed from disk. Your local text is preserved.")
+            return
         }
+        guard documentID == id, fileURL == url, !isSaving, diskBaseline == baselineAtStart else { return }
+        guard version != diskBaseline else {
+            if externalChange != nil { externalChange = nil; editor?.clearComparison() }
+            return
+        }
+        if let pending = externalChange, pending.disk == version, pending.token == dismissedExternalToken { return }
+        // A known dirty buffer needs no conversion to display the independent
+        // disk pane. Avoid making the preview wait for local serialization.
+        if isDirty { presentExternal(version, issue: nil); return }
+        let current: EditorSnapshot
+        do {
+            current = try await captureEditorSnapshot()
+        } catch {
+            guard documentID == id, fileURL == url, !isSaving, diskBaseline == baselineAtStart else { return }
+            NSLog("[FileCheck] Local editor snapshot failed: %@", Self.editorErrorDetail(error))
+            presentExternal(version, issue: "The local editor could not be checked. The disk version is shown below.")
+            return
+        }
+        guard documentID == id, !isSaving, diskBaseline == baselineAtStart else { return }
+        if !isDirty {
+            do {
+                let applied = try await editor?.replaceContent(version.text, expectedRevision: current.revision)
+                    ?? EditorSnapshot(documentID: id, revision: session.revision + 1, markdown: version.text)
+                guard documentID == id else { return }
+                _ = accept(applied)
+                session.didSave(applied)
+                diskBaseline = version
+                externalChange = nil
+                editor?.setBaseline(version.text, revision: applied.revision)
+                editor?.clearComparison()
+            } catch { presentExternal(version, issue: nil) }
+        } else { presentExternal(version, issue: nil) }
     }
 
-    private func presentExternal(_ disk: DiskVersion?, issue: String?) {
-        if externalChange?.disk == disk, externalChange?.issue == issue, externalChange != nil { return }
+    private static func editorErrorDetail(_ error: Error) -> String {
+        (error as NSError).userInfo["WKJavaScriptExceptionMessage"] as? String ?? error.localizedDescription
+    }
+
+    private func presentExternal(_ disk: DiskVersion?, issue: String?, force: Bool = false) {
+        if externalChange?.disk == disk, externalChange?.issue == issue, let change = externalChange {
+            if force { dismissedExternalToken = nil; editor?.showComparison(base: diskBaseline?.text ?? session.savedText, disk: disk?.text, token: change.token, issue: issue) }
+            return
+        }
+        let keepDismissed = !force && externalChange?.disk == disk && externalChange?.token == dismissedExternalToken && externalChange != nil
+        dismissedExternalToken = nil
         let change = ExternalChange(disk: disk, issue: issue)
         externalChange = change
+        if keepDismissed { dismissedExternalToken = change.token; return }
         editor?.showComparison(base: diskBaseline?.text ?? session.savedText, disk: disk?.text, token: change.token, issue: issue)
     }
 
+    func keepLocal(token: String) {
+        guard externalChange?.token == token else { return }
+        dismissedExternalToken = token
+        editor?.clearComparison()
+    }
+
     func restoreComparison() {
-        if let change = externalChange {
+        if let change = externalChange, change.token != dismissedExternalToken {
             if !isDirty && change.disk != nil { requestDiskCheck(); return }
             editor?.showComparison(base: diskBaseline?.text ?? session.savedText, disk: change.disk?.text, token: change.token, issue: change.issue)
         }
@@ -277,10 +316,17 @@ final class DocumentStore: ObservableObject {
     func applyExternal(token: String) async {
         guard let change = externalChange, change.token == token, let shown = change.disk, let url = fileURL else { return }
         let id = documentID
+        let latest: DiskVersion
         do {
-            let latest = try await Task.detached(priority: .utility) { try DiskAccess.read(url) }.value
+            latest = try await Task.detached(priority: .utility) { try DiskAccess.read(url) }.value
+        } catch {
             guard documentID == id, externalChange?.token == token else { return }
-            guard latest == shown else { presentExternal(latest, issue: nil); return }
+            presentExternal(nil, issue: "The file could not be read. Your local text is preserved.")
+            return
+        }
+        guard documentID == id, externalChange?.token == token else { return }
+        guard latest == shown else { presentExternal(latest, issue: nil); return }
+        do {
             let applied = try await editor?.replaceContent(shown.text, expectedRevision: nil)
                 ?? EditorSnapshot(documentID: id, revision: session.revision + 1, markdown: shown.text)
             guard documentID == id else { return }
@@ -290,7 +336,11 @@ final class DocumentStore: ObservableObject {
             externalChange = nil
             editor?.setBaseline(shown.text, revision: applied.revision)
             editor?.clearComparison()
-        } catch { presentExternal(nil, issue: "The file could not be checked. Your local text is preserved.") }
+        } catch {
+            guard documentID == id else { return }
+            NSLog("[FileCheck] Applying disk version failed: %@", Self.editorErrorDetail(error))
+            presentExternal(shown, issue: "The editor could not apply this version. Both versions are preserved.", force: true)
+        }
     }
 
     func resumeEditing() { editor?.resumeEditing() }

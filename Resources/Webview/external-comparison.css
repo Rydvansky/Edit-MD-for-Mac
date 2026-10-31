@@ -17,3 +17,7 @@
 .native-diff-delete{color:#ad2638;background:rgba(220,60,70,.12);text-decoration:line-through}
 .native-diff-add,.native-added,.native-added-block{background:rgba(255,208,40,.28)!important}
 .native-deleted{color:#ad2638;background:rgba(220,60,70,.12);text-decoration:line-through;white-space:pre-wrap;pointer-events:none}
+
+.native-comparison-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
+
+#native-comparison-notice{margin:0 12px 12px;padding:8px 10px;border-left:2px solid #ca9420;background:rgba(255,208,40,.10);color:var(--text-primary,#333)}

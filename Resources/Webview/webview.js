@@ -237379,7 +237379,7 @@ ${element3.innerHTML}
     }
     parse(content) {
       let {
-        inline: inline3
+        inline: inline3, env
       } = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {};
       if (typeof content === "string") {
         this.editor.extensionManager.extensions.forEach((extension5) => {
@@ -237389,7 +237389,7 @@ ${element3.innerHTML}
             options: extension5.options
           }, this.md);
         });
-        const renderedHTML = this.md.render(content);
+        const renderedHTML = this.md.render(content, env);
         const element3 = elementFromString2(renderedHTML);
         this.editor.extensionManager.extensions.forEach((extension5) => {
           var _getMarkdownSpec2;
@@ -249763,15 +249763,18 @@ ${body}
   var YAML_FM = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
   var TOML_FM = /^\+\+\+\r?\n([\s\S]*?)\r?\n\+\+\+\r?\n?/;
   function splitFrontmatter(md2) {
-    const yaml2 = md2.match(YAML_FM);
-    if (yaml2) return { frontmatter: yaml2[0], body: md2.slice(yaml2[0].length), kind: "yaml" };
-    const toml = md2.match(TOML_FM);
-    if (toml) return { frontmatter: toml[0], body: md2.slice(toml[0].length), kind: "toml" };
-    return { frontmatter: "", body: md2, kind: "none" };
+    // A UTF-8 BOM is source metadata, not paragraph text before a heading.
+    const bom=md2.charCodeAt(0)===0xfeff?"\ufeff":"";
+    const source=bom?md2.slice(1):md2;
+    const yaml2=source.match(YAML_FM);
+    if(yaml2)return {frontmatter:bom+yaml2[0],body:source.slice(yaml2[0].length),kind:"yaml"};
+    const toml=source.match(TOML_FM);
+    if(toml)return {frontmatter:bom+toml[0],body:source.slice(toml[0].length),kind:"toml"};
+    return {frontmatter:bom,body:source,kind:"none"};
   }
   function countFrontmatterLines(fm) {
     if (!fm) return 0;
-    const inner2 = fm.replace(/^(?:---|\+\+\+)\r?\n/, "").replace(/\r?\n(?:---|\+\+\+)\r?\n?$/, "");
+    const inner2 = fm.replace(/^\ufeff/, "").replace(/^(?:---|\+\+\+)\r?\n/, "").replace(/\r?\n(?:---|\+\+\+)\r?\n?$/, "");
     return inner2.split("\n").filter((line2) => line2.length > 0).length;
   }
   function frontmatterInfo(md2) {
@@ -250575,9 +250578,16 @@ ${body}
         debounce4?.flush();
       }
     });
+    const parseSource = (markdown, env) => {
+      const prepared=preprocessMarkdownBoards(preprocessMarkdownCallouts(markdown));
+      setPendingTableWidths(scanTableDashCounts(prepared));
+      return createDocument(editor.storage.markdown.parser.parse(prepared,{env}),editor.schema);
+    };
+    editor.sourceDocument=new window.SourceDocument(editor,split2.body,parseSource,node=>serializeHTML(node,editor.state.doc));
+    editor.storage.markdown.getMarkdown=()=>editor.sourceDocument.serialize();
     debounce4 = createFlushableDebounce(() => {
       const markdown2 = editor.storage.markdown.getMarkdown();
-      onChange(frontmatter + markdown2);
+      onChange(editor === _editor ? getCurrentMarkdown() : frontmatter + markdown2);
     }, 500);
     createBubbleMenu(editor);
     createImageBubbleMenu(editor);
@@ -250623,6 +250633,7 @@ ${body}
     const savedFrom = sel.from;
     const savedTo = sel.to;
     _editor.commands.setContent(next3);
+    _editor.sourceDocument?.reset(split2.body);
     try {
       const docSize = _editor.state.doc.content.size;
       const clamp2 = (n2) => Math.max(0, Math.min(n2, Math.max(0, docSize - 1)));
@@ -252713,6 +252724,7 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
           vscode.postMessage({ type: "edit", markdown: md2 });
         }
       }
+      if(targetSource)ensureSourceEditor();
       sourceMode = targetSource;
       document.documentElement.classList.toggle("source-mode-active", sourceMode);
       document.getElementById("toolbar")?.classList.toggle("source-active", sourceMode);
@@ -252722,7 +252734,6 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
         el2.style.display = "none";
       });
       if (sourceMode) {
-        ensureSourceEditor();
         editorEl.style.display = "none";
         sourceEl.style.display = "block";
       } else {
@@ -252737,6 +252748,8 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
         const previousEditor = sourceMode ? getEditor() : getSourceEditor();
         findBar.retarget(previousEditor);
       }
+      } catch(error) {
+        window.__nativeEditor?.conversionError(error.message || String(error));
       } finally { finishNativeMode?.(); }
     }
     const fmBadge = document.getElementById("fm-badge");
@@ -253420,7 +253433,11 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
         return createDocument(getEditor().storage.markdown.parser.parse(body),getEditor().schema);
       },
       replace(markdown) {
-        flushPendingEdit();
+        // Explicit replacement does not need to serialize the discarded buffer.
+        // Cancel pending callbacks so a failed/local old snapshot cannot leak
+        // into the newly adopted version; the old model remains in Undo history.
+        _editDebounce?.cancel();
+        _sourceEditDebounce?.cancel();
         currentMarkdown=markdown;
         rememberSent(markdown);
         for(const ed of [getEditor(),getSourceEditor()]) if(ed) ed.view.dispatch(ed.state.tr.setMeta(closeHistoryKey,true));

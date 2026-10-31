@@ -12,6 +12,30 @@ This project follows semantic versioning: `MAJOR.MINOR.PATCH`.
 - Match regular Markdown table text to the surrounding editor text size, including the selected text-size setting.
 - Align all Markdown table cell text at the top left, including cells with explicit alignment markers.
 
+## [2.0.15] - 2026-10-31
+
+### Fixed
+
+- Disk comparison no longer requires serializing a dirty Preview buffer. Successfully read external data remains visible even when the local editor cannot produce a Save snapshot.
+- Separate file-read, editor-check and Apply errors. Editor warnings no longer replace readable disk content with a generic error message.
+- Apply cancels obsolete debounced callbacks rather than serializing the discarded local document; one Undo still restores that document.
+- If highlighting fails, show the full disk source without highlights instead of hiding it. Local highlight failures cannot break the right pane.
+- Add regression checks for unsaved Preview changes followed by external writes on both full demo files, editor conversion failures, Keep mine, Apply/Undo, and recovery.
+
+## [2.0.14] - 2026-10-31
+
+### Fixed
+
+- Preserve Markdown source ranges instead of regenerating the entire file after a rich edit. Untouched blocks, reference definitions, HTML, table alignment, whitespace and line endings remain byte-identical.
+- Validate changed blocks against the editor model. Prefer minimal text edits to preserve their original spelling; reject conversions that would silently lose structure.
+- Keep Code/Preview transitions source-stable, including nested quotes and formatted toggles. Preserve BOM and current frontmatter across mode changes.
+- Keep the left editor strictly local; deleted baseline text is shown only in the right disk comparison.
+
+### Added
+
+- “No, keep mine” next to “Apply changes?” closes comparison without writing or replacing local text. The same disk version stays dismissed until Save or another external change; the pre-save guard remains active.
+- Source-fidelity checks cover both demo files, H1-only changes, every editable demo block, repeated mode changes/reopening, structural edits, nested quotes, BOM and CRLF, plus native disk saves and buffer ownership.
+
 ## [2.0.13] - 2026-10-31
 
 ### Added

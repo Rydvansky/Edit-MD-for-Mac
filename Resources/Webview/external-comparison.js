@@ -4,9 +4,10 @@ window.ExternalComparison = class {
     this.post=post;this.revision=revision;this.jobs=new Map();this.sequence=0;
     const workerSource=`const compare=${comparisonDiff.toString()};onmessage=e=>{const {id,base,other}=e.data;postMessage({id,ops:compare(base,other)})}`;
     const workerURL=URL.createObjectURL(new Blob([workerSource],{type:'text/javascript'}));
-    this.worker=new Worker(workerURL);URL.revokeObjectURL(workerURL);
-    this.worker.onmessage=event=>{const job=this.jobs.get(event.data.id);this.jobs.delete(event.data.id);job?.(event.data.ops)};
-    this.worker.onerror=()=>{this.failed=true;this.rightBody.textContent='Comparison could not be displayed. Your text and the disk version are preserved.';this.jobs.clear()};
+    try { this.worker=new Worker(workerURL); } catch { this.failed=true; }
+    URL.revokeObjectURL(workerURL);
+    if(this.worker)this.worker.onmessage=event=>{const job=this.jobs.get(event.data.id);this.jobs.delete(event.data.id);job?.(event.data.ops)};
+    if(this.worker)this.worker.onerror=()=>{this.failed=true;this.jobs.clear();this.showDiskWithoutHighlights()};
     const root=document.createElement('div');root.id='native-workspace';
     const left=document.createElement('section');left.id='native-local-pane';
     for(const child of [...document.body.children])if(child.tagName!=='SCRIPT')left.appendChild(child);
@@ -16,8 +17,12 @@ window.ExternalComparison = class {
     this.localToast.id='native-local-toast';this.localToast.hidden=true;left.prepend(this.localToast);
     this.right=document.createElement('aside');this.right.id='native-disk-pane';this.right.hidden=true;
     const header=this.banner('File changed outside the app.','Apply changes?',()=>post({type:'applyExternal',token:this.token}));
-    this.apply=header.querySelector('button');this.right.appendChild(header);
+    this.apply=header.querySelector('button');
+    const keep=document.createElement('button');keep.textContent='No, keep mine';keep.onclick=()=>post({type:'keepLocal',token:this.token});
+    const actions=document.createElement('div');actions.className='native-comparison-actions';
+    actions.append(this.apply,keep);header.appendChild(actions);this.right.appendChild(header);
     const label=document.createElement('div');label.className='native-comparison-label';label.textContent='Disk version · Markdown · yellow: added · red: removed';this.right.appendChild(label);
+    this.notice=document.createElement('p');this.notice.id='native-comparison-notice';this.notice.className='native-comparison-label';this.notice.hidden=true;this.notice.setAttribute('role','status');this.right.appendChild(this.notice);
     this.rightBody=document.createElement('pre');this.rightBody.id='native-disk-diff';this.rightBody.tabIndex=0;this.rightBody.setAttribute('aria-label','External Markdown changes');
     this.right.appendChild(this.rightBody);root.appendChild(this.right);
   }
@@ -30,12 +35,20 @@ window.ExternalComparison = class {
     if(this.failed)return;
     const id=++this.sequence;this.jobs.set(id,callback);this.worker.postMessage({id,base,other});
   }
+  showDiskWithoutHighlights() {
+    if(!this.shown||typeof this.disk!=='string')return;
+    this.rightBody.textContent=this.disk;
+    this.notice.hidden=false;this.notice.textContent='Change highlighting is unavailable. The disk version is shown below.';
+    this.apply.disabled=false;
+  }
   show({base,disk,token,issue}) {
-    this.base=base;this.token=token;this.shown=true;
+    this.base=base;this.disk=disk;this.token=token;this.shown=true;
     this.localToast.hidden=false;this.right.hidden=false;document.documentElement.classList.add('native-comparing');
     this.apply.disabled=true;
     const shownToken=token;
-    if(issue)this.rightBody.textContent=issue;
+    this.notice.hidden=!issue||typeof disk!=='string';this.notice.textContent=issue||'';
+    if(typeof disk!=='string')this.rightBody.textContent=issue||'The disk version is unavailable. Your local text is preserved.';
+    else if(this.failed)this.showDiskWithoutHighlights();
     else {
       this.rightBody.textContent='Comparing external changes…';
       this.diff(base.split('\n'),disk.split('\n'),ops=>{
@@ -57,7 +70,12 @@ window.ExternalComparison = class {
   }
   scheduleLocal() {
     if(!this.shown)return;
-    clearTimeout(this.localTimer);this.localTimer=setTimeout(()=>this.localDiff(),650);
+    clearTimeout(this.localTimer);this.localTimer=setTimeout(()=>{
+      try {this.localDiff()} catch {
+        // Local highlighting is optional; it must not take down disk preview.
+        window.__mdEditorBridge.clearComparisonDecorations?.();
+      }
+    },650);
   }
   localDiff() {
     if(!this.shown)return;
@@ -95,7 +113,9 @@ window.ExternalComparison = class {
           }
         }
       }
-      api.setComparisonDecorations(specs);
+      // The left pane is the user's current buffer. Never insert deleted
+      // baseline text into its visible source; removals belong on the right.
+      api.setComparisonDecorations(specs.filter(spec=>spec.to>spec.from).map(({deleted,...current})=>current));
     });
   }
 };

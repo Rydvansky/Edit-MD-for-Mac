@@ -48,6 +48,25 @@ struct ExternalChangesSmoke {
             (try? await web.evaluateJavaScript("!document.getElementById('native-disk-pane').hidden && document.querySelector('.native-diff-add')!==null && document.querySelector('.native-diff-delete')!==null && !document.querySelector('#native-disk-pane button').disabled") as? Bool)==true
         }
         try await wait { (try? await web.evaluateJavaScript("!!document.querySelector('.native-added')") as? Bool)==true }
+        // Capture a real test window to inspect both banners and the strictly
+        // local left editor without interacting with the user's open windows.
+        let image: NSImage = try await withCheckedThrowingContinuation { continuation in
+            web.takeSnapshot(with:nil) { image,error in
+                if let image { continuation.resume(returning:image) }
+                else { continuation.resume(throwing:error ?? Failure("Snapshot failed")) }
+            }
+        }
+        if let tiff=image.tiffRepresentation,let bitmap=NSBitmapImageRep(data:tiff),let png=bitmap.representation(using:.png,properties:[:]) {
+            try png.write(to:URL(fileURLWithPath:"/tmp/md-source-comparison.png"))
+        }
+        let keepToken=store.externalChange!.token
+        store.keepLocal(token:keepToken)
+        try await wait { (try? await web.evaluateJavaScript("document.getElementById('native-disk-pane').hidden") as? Bool)==true }
+        await store.checkDisk()
+        guard store.text.contains("LOCAL TOKEN") else { throw Failure("Keep mine changed the local text") }
+        guard (try? await web.evaluateJavaScript("document.getElementById('native-disk-pane').hidden") as? Bool)==true else { throw Failure("Keep mine reopened for the same disk version") }
+        guard await store.saveDocument()==false else { throw Failure("Keep mine disabled the save guard") }
+        try await wait { (try? await web.evaluateJavaScript("!document.getElementById('native-disk-pane').hidden") as? Bool)==true }
         let before=store.text
         guard await store.synchronizeEditor(),store.text==before else { throw Failure("Decorations changed the serialized document") }
         _=try await web.evaluateJavaScript("document.querySelector('[data-view=source]').click();document.querySelector('[data-view=preview]').click();true")
@@ -75,6 +94,56 @@ struct ExternalChangesSmoke {
         await store.checkDisk()
         guard store.externalChange?.disk==nil,store.externalChange?.issue != nil,store.text.contains("Changed summary") else{throw Failure("File deletion lost the buffer")}
         guard await store.saveDocument()==false,!FileManager.default.fileExists(atPath:url.path) else{throw Failure("Save silently recreated a deleted file")}
+        // A local conversion failure must never hide successfully read disk
+        // data. Inject an unavailable source range, not a file-read failure.
+        let recovery=directory.appendingPathComponent("recovery.md")
+        try "# Original heading\n\nBody.\n".write(to:recovery,atomically:true,encoding:.utf8)
+        await store.open(recovery)
+        try await wait { try await bridge.snapshot(lock:false) != nil }
+        _=try await web.evaluateJavaScript("(() => { const ed=window.__mdEditorBridge.getEditor();ed.sourceDocument.ranges[0]=undefined;return ed.commands.insertContentAt(1,'LOCAL ') })()")
+        let readable="# New disk heading\n\nReadable external data.\n"
+        try readable.write(to:recovery,atomically:true,encoding:.utf8)
+        await store.checkDisk()
+        guard store.externalChange?.disk?.text==readable else { throw Failure("Local conversion failure hid a readable disk version") }
+        try await wait { (try? await web.evaluateJavaScript("document.querySelector('#native-disk-diff').textContent.includes('Readable external data')") as? Bool)==true }
+        guard try await web.evaluateJavaScript("window.__mdEditorBridge.getEditor().state.doc.textContent.includes('LOCAL')") as? Bool==true else { throw Failure("Local conversion failure replaced the editor") }
+        let rejected=store.externalChange!.token
+        store.keepLocal(token:rejected)
+        try await wait { (try? await web.evaluateJavaScript("document.querySelector('#native-disk-pane').hidden") as? Bool)==true }
+        await store.checkDisk()
+        guard try await web.evaluateJavaScript("document.querySelector('#native-disk-pane').hidden") as? Bool==true else { throw Failure("Repeated editor failure ignored Keep mine") }
+        let latest=readable+"Another disk update.\n"
+        try latest.write(to:recovery,atomically:true,encoding:.utf8)
+        await store.checkDisk()
+        let applyToken=store.externalChange!.token
+        await store.applyExternal(token:applyToken)
+        guard store.text==latest,!store.isDirty else { throw Failure("Apply depended on serializing the discarded local document") }
+        _=try await web.evaluateJavaScript("window.__mdEditorBridge.getEditor().commands.undo()")
+        guard await store.synchronizeEditor(),store.text.contains("LOCAL"),store.isDirty else { throw Failure("Apply after failed conversion lost the Undo version") }
+        // Also exercise an editor-check failure before the native dirty flag
+        // is known. Successfully read disk data still has to be shown.
+        let cleanFailure=directory.appendingPathComponent("clean-failure.md")
+        try "# Clean buffer\n".write(to:cleanFailure,atomically:true,encoding:.utf8)
+        await store.open(cleanFailure)
+        try await wait { try await bridge.snapshot(lock:false) != nil }
+        _=try await web.evaluateJavaScript("window.__savedGetMarkdown=window.__mdEditorBridge.getMarkdown;window.__mdEditorBridge.getMarkdown=()=>{throw new Error('simulated editor conversion failure')};true")
+        try "# Readable disk after editor error\n".write(to:cleanFailure,atomically:true,encoding:.utf8)
+        await store.checkDisk()
+        guard store.externalChange?.disk?.text.contains("Readable disk") == true else { throw Failure("Clean editor failure hid readable disk data") }
+        try await wait { (try? await web.evaluateJavaScript("document.querySelector('#native-disk-diff').textContent.includes('Readable disk after editor error')") as? Bool)==true }
+        guard try await web.evaluateJavaScript("window.__mdEditorBridge.getEditor().state.doc.textContent==='Clean buffer'") as? Bool==true else { throw Failure("A failed clean check replaced local content") }
+        let recoveryImage: NSImage = try await withCheckedThrowingContinuation { continuation in
+            web.takeSnapshot(with:nil) { image,error in
+                if let image { continuation.resume(returning:image) }
+                else { continuation.resume(throwing:error ?? Failure("Recovery snapshot failed")) }
+            }
+        }
+        if let tiff=recoveryImage.tiffRepresentation,let bitmap=NSBitmapImageRep(data:tiff),let png=bitmap.representation(using:.png,properties:[:]) {
+            try png.write(to:URL(fileURLWithPath:"/tmp/md-disk-preview-recovery.png"))
+        }
+        _=try await web.evaluateJavaScript("window.__mdEditorBridge.getMarkdown=window.__savedGetMarkdown;true")
+        await store.checkDisk()
+        guard store.text.contains("Readable disk"),!store.isDirty else { throw Failure("Editor recovery did not refresh the clean document") }
         window.orderOut(nil)
     }
 }

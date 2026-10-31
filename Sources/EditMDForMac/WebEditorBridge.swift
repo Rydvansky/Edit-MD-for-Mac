@@ -153,8 +153,10 @@ final class WebEditorBridge: NSObject, ObservableObject, DocumentEditor, WKNavig
             if let markdown = message["markdown"] as? String {
                 _ = store.accept(EditorSnapshot(documentID: store.documentID, revision: revision, markdown: markdown))
             }
+        case "conversionError": store.showError("Could not convert this edit safely.", recovery: message["message"] as? String)
         case "save": store.save()
         case "saveLocalAs": store.saveAs()
+        case "keepLocal": if let token = message["token"] as? String { store.keepLocal(token: token) }
         case "applyExternal":
             if let token = message["token"] as? String { Task { await store.applyExternal(token: token) } }
         case "saveDefaults":

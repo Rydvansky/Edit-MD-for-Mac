@@ -156,17 +156,19 @@ swiftc -DARCHITECTURE_SMOKE Sources/EditMDForMac/*.swift scripts/native_bridge_s
 .build-architecture/native-bridge-smoke
 ```
 
-The editor bundle remains a licensed vendor artifact. Our maintained adapter is `Resources/Webview/native-host.js`. The bundle has two integration hooks: immediate dirty notification and document context/save-indicator access. Preserve these hooks when replacing the vendor bundle.
+Markdown source ranges are preserved across rich edits: changing an H1 does not rewrite unrelated quotes, tables, HTML or references. Only changed fragments are converted and validated against the editor model. Code/Preview uses the same source-preserving path. Run `swift scripts/source_roundtrip.swift` to check both demo fixtures and all editable block types.
+
+The editor bundle remains a licensed vendor artifact. Our maintained adapter is `Resources/Webview/native-host.js`. The bundle has narrow integration hooks for editor transactions, mode changes, source preservation and document context/save-indicator access. Preserve these hooks when replacing the vendor bundle.
 
 ## External File Changes
 
-The app watches the open file's parent directory and checks again on focus/wake and before writing. Clean documents refresh automatically. With local edits, the editor stays on the left and a read-only Markdown comparison appears on the right. Yellow indicates additions; red struck-out text indicates deletions. The two panes compare independently against the last synchronized disk version.
+The app watches the open file's parent directory and checks again on focus/wake and before writing. Clean documents refresh automatically. With local edits, the editor stays on the left and a read-only Markdown comparison appears on the right. Yellow indicates additions; red struck-out text in the right pane indicates deletions. The left editor always contains only the current local text. The two panes compare independently against the last synchronized disk version.
 
-“Save my version as…” writes the local buffer to a different file and makes that file active. “Apply changes?” replaces the entire local document with the displayed disk version, without writing to disk; one Undo restores the prior local version. You can also copy selected fragments manually. Ordinary Save cannot silently overwrite a changed, deleted, or unreadable file.
+“Save my version as…” writes the local buffer to a different file and makes that file active. “Apply changes?” replaces the entire local document with the displayed disk version, without writing to disk; one Undo restores the prior local version. “No, keep mine” dismisses the comparison without changing either file; the pre-save guard still applies. You can also copy selected fragments manually. Ordinary Save cannot silently overwrite a changed, deleted, or unreadable file.
 
 Comparison uses a Web Worker and bounded-memory patience anchors. Local highlights refresh after a typing pause. Decorative highlights never enter the Markdown or its undo history. Code/Preview changes are service operations, not user edits.
 
-The right pane shows Markdown source so every external character can be selected and copied. Arbitrary programs that ignore macOS file coordination can still race a write; file notifications alone are not a guarantee of exclusive access.
+The right pane shows Markdown source so every external character can be selected and copied. Its disk read is independent of local Save conversion. If the local editor cannot provide a snapshot, the disk version remains available; if comparison highlighting fails, the full disk source is still shown. Arbitrary programs that ignore macOS file coordination can still race a write; file notifications alone are not a guarantee of exclusive access.
 
 Additional checks:
 
