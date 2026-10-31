@@ -16,7 +16,7 @@ Current version is stored in `VERSION`.
 
 - Opens `.md`, `.markdown`, `.mdown`, `.mkd`, and `.txt` files.
 - Detects changes made outside the app. If local edits are pending, it shows a comparison and lets you apply the disk version or keep your edits.
-- Reloads the document automatically when the file changes and there are no local edits.
+- ⚠️ Reloads the document automatically when the file changes and there are no local edits.
 
 ### Editor
 
