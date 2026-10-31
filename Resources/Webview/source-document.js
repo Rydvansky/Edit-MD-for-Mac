@@ -4,7 +4,18 @@
 window.SourceDocument = class {
   static key(node) {
     const json=node.toJSON();
-    const normalize=n=>{if(n.attrs)delete n.attrs.dir;n.content?.forEach(normalize)};
+    const normalize=n=>{
+      if(n.attrs) {
+        delete n.attrs.dir;
+        // WebKit returns CSS colors as rgb()/rgba(), while toolbar commands
+        // use hex. Compare their CSS meaning, not those equivalent spellings.
+        if(n.attrs.color) {
+          const style=document.createElement('span').style;style.color=n.attrs.color;
+          if(style.color)n.attrs.color=style.color;
+        }
+      }
+      n.marks?.forEach(normalize);n.content?.forEach(normalize);
+    };
     normalize(json);return JSON.stringify(json);
   }
   constructor(editor,source,parse,html) {
@@ -19,10 +30,17 @@ window.SourceDocument = class {
     this.env={};
     const tokens=this.editor.storage.markdown.parser.md.parse(source,this.env);
     const offsets=[0];for(let i=0;i<source.length;i++)if(source[i]==='\n')offsets.push(i+1);
-    const spans=[];let details=null,depth=0;
+    const spans=[];let details=null,depth=0,board=null;
     for(const token of tokens) {
       if(token.level!==0||token.nesting<0||!token.map)continue;
       const start=offsets[token.map[0]]??source.length,end=offsets[token.map[1]]??source.length;
+      // A board is projected from a marker/table/marker region into one atom.
+      // Mapping the raw table alone cannot match that atom after an edit.
+      if(details===null&&token.type==='html_block'&&/<!--\s*board:start\b/i.test(token.content))board=start;
+      if(board!==null) {
+        if(token.type==='html_block'&&/<!--\s*board:end\s*-->/i.test(token.content)){spans.push([board,end]);board=null}
+        continue;
+      }
       if(token.type==='html_block') {
         const html=token.content.replace(/<!--[\s\S]*?-->/g,'');
         const tags=html.match(/<\/?details\b[^>]*>/gi)||[];
@@ -36,6 +54,7 @@ window.SourceDocument = class {
       if(details===null)spans.push([start,end]);
     }
     if(details!==null)spans.push([details,source.length]);
+    if(board!==null)spans.push([board,source.length]);
     let cursor=0;
     for(let [start,end] of spans) {
       if(start===0&&source.charCodeAt(0)===0xfeff)start=1;
@@ -135,12 +154,14 @@ window.SourceDocument = class {
     const serializer=this.editor.storage.markdown.serializer;
     const doc=this.editor.schema.topNodeType;
     // Separate block atoms (notably images) and adjacent lists explicitly.
-    const parts=nodes.map(n=>serializer.serialize(doc.create(null,[n])));
+    // Markdown blank lines do not represent empty paragraphs. Emit an explicit
+    // HTML paragraph so Enter at a block edge survives inside the full document.
+    const parts=nodes.map(n=>n.type.name==='paragraph'&&!n.content.size?this.html(n):serializer.serialize(doc.create(null,[n])));
     let candidate=this.restoreMetadata(parts.join('\n\n'),raw);
     if(this.same(candidate,nodes))return candidate;
     candidate=this.restoreMetadata(nodes.map(n=>this.html(n)).join('\n\n'),raw);
     if(this.same(candidate,nodes))return candidate;
-    throw new Error('This block cannot be saved faithfully in Preview. Your edits are kept in the editor; use Code to preserve its source.');
+    throw new Error('The '+nodes.map(n=>n.type.name).join(', ')+' block could not be converted safely. Your edits remain in the editor and the file has not been overwritten.');
   }
   serialize() {
     const current=this.editor.state.doc;
@@ -173,7 +194,7 @@ window.SourceDocument = class {
       // source fragment indivisible when a child is edited or inserted.
       const left=this.ranges[h.a],right=this.ranges[h.endA-1];
       if(h.endA>h.a) {
-        if(!left||!right)throw new Error('This edited block has no reliable Markdown source range. Your edits are preserved; switch to Code before saving.');
+        if(!left||!right)throw new Error('The edited block could not be matched to its Markdown source. Your edits remain in the editor and the file has not been overwritten.');
         h.b-=h.a-left.first;h.a=left.first;
         h.endB+=right.last-h.endA;h.endA=right.last;
       } else if(left&&h.a>left.first) {

@@ -49,7 +49,7 @@ Edit MD for Mac-vX.Y.Z.zip
 Edit MD for Mac-vX.Y.Z.dmg
 ```
 
-The macOS app bundle version is written to `CFBundleShortVersionString` during packaging.
+The current version is **2.1.19**. Packaging writes VERSION to both `CFBundleShortVersionString` and `CFBundleVersion` in the macOS app bundle.
 
 ## Build Commands
 
@@ -95,7 +95,7 @@ dist/Edit MD for Mac-vX.Y.Z.dmg
 ```
 
 For normal installation, open the `.dmg` and drag the app into `Applications`.
-For versioned releases, the app bundle name includes the version, for example `Edit MD for Mac-v2.0.7.app`.
+For versioned releases, the app bundle name includes the version, for example `Edit MD for Mac-v2.1.19.app`.
 
 ## Unsigned Local Build
 
@@ -156,7 +156,7 @@ swiftc -DARCHITECTURE_SMOKE Sources/EditMDForMac/*.swift scripts/native_bridge_s
 .build-architecture/native-bridge-smoke
 ```
 
-Markdown source ranges are preserved across rich edits: changing an H1 does not rewrite unrelated quotes, tables, HTML or references. Only changed fragments are converted and validated against the editor model. Code/Preview uses the same source-preserving path. Run `swift scripts/source_roundtrip.swift` to check both demo fixtures and all editable block types.
+Markdown source ranges are preserved across rich edits: changing an H1 does not rewrite unrelated quotes, tables, HTML or references. Only changed fragments are converted and validated against the editor model. Code/Preview uses the same source-preserving path. Rich parsing consistently preserves typed spaces. Empty paragraphs and other structures that Markdown cannot express use validated compact HTML within the changed fragment. Command-S uses native Save and its error handling; conversion failures preserve the editable buffer. Run `swift scripts/source_roundtrip.swift` to check both demo fixtures and all editable block types. Run `swift scripts/editor_input_regression.swift` for text transactions, spaces, Enter, hard breaks, deletion and formatting across the demo blocks.
 
 The editor bundle remains a licensed vendor artifact. Our maintained adapter is `Resources/Webview/native-host.js`. The bundle has narrow integration hooks for editor transactions, mode changes, source preservation and document context/save-indicator access. Preserve these hooks when replacing the vendor bundle.
 
@@ -164,7 +164,7 @@ The editor bundle remains a licensed vendor artifact. Our maintained adapter is 
 
 The app watches the open file's parent directory and checks again on focus/wake and before writing. Clean documents refresh automatically. With local edits, the editor stays on the left and a read-only Markdown comparison appears on the right. Yellow indicates additions; red struck-out text in the right pane indicates deletions. The left editor always contains only the current local text. The two panes compare independently against the last synchronized disk version.
 
-“Save my version as…” writes the local buffer to a different file and makes that file active. “Apply changes?” replaces the entire local document with the displayed disk version, without writing to disk; one Undo restores the prior local version. “No, keep mine” dismisses the comparison without changing either file; the pre-save guard still applies. You can also copy selected fragments manually. Ordinary Save cannot silently overwrite a changed, deleted, or unreadable file.
+“Save my version as…” writes the local buffer to a different file and makes that file active. “Apply changes?” replaces the entire local document with the displayed disk version, without writing to disk; one Undo restores the prior local version. “No, keep mine” dismisses the comparison without changing either file; the pre-save guard still applies. You can also copy selected fragments manually. External changes first appear in the right Preview. Save before a decision keeps that review panel open. Only after “No, keep mine” for the same disk version does Save ask for Yes/No overwrite confirmation. A newer external version opens the Preview again. After Apply, Save works normally. No preserves local edits and the dismissed panel. Yes saves the local version only if the disk still matches the version checked before confirmation. Deleted or unreadable files retain their safeguards.
 
 Comparison uses a Web Worker and bounded-memory patience anchors. Local highlights refresh after a typing pause. Decorative highlights never enter the Markdown or its undo history. Code/Preview changes are service operations, not user edits.
 

@@ -24,7 +24,7 @@ struct ExternalChangesSmoke {
         let url=directory.appendingPathComponent("note.md")
         let original="# Title\n\nOriginal **bold** text.\n\nLast line.\n"
         try original.write(to:url,atomically:true,encoding:.utf8)
-        let store=DocumentStore();await store.open(url)
+        let store=DocumentStore();store.confirmOverwrite={false};await store.open(url)
         let bridge=WebEditorBridge(),web=bridge.makeWebView(store:store)
         let window=NSWindow(contentRect:NSRect(x:0,y:0,width:1200,height:800),styleMask:[.titled],backing:.buffered,defer:false)
         window.contentView=web;window.orderFront(nil)
@@ -41,13 +41,18 @@ struct ExternalChangesSmoke {
         guard await store.synchronizeEditor(),store.isDirty else{throw Failure("Local editing not tracked")}
         let external="# Title\n\nExternal second update.\n\nNew disk line.\n"
         try external.write(to:url,atomically:true,encoding:.utf8)
-        await store.checkDisk()
+        // Exercise the real watcher: no manual check or Save to reveal the pane.
         try await wait {store.externalChange != nil}
         guard store.text.contains("LOCAL TOKEN"),try String(contentsOf:url,encoding:.utf8)==external else{throw Failure("External change overwrote a buffer or disk")}
         try await wait {
             (try? await web.evaluateJavaScript("!document.getElementById('native-disk-pane').hidden && document.querySelector('#native-disk-diff .ProseMirror h1')!==null && document.querySelector('#native-disk-diff .native-diff-add')!==null && document.querySelector('#native-disk-diff .native-diff-delete')!==null && !document.querySelector('#native-disk-pane button').disabled") as? Bool)==true
         }
         guard try await web.evaluateJavaScript("document.querySelector('#native-disk-diff .ProseMirror').getAttribute('contenteditable')==='false'") as? Bool==true else {throw Failure("Disk preview is editable")}
+        var unreviewedPrompts=0
+        store.confirmOverwrite={unreviewedPrompts+=1;return true}
+        guard await store.saveDocument()==false,unreviewedPrompts==0,
+              try String(contentsOf:url,encoding:.utf8)==external else {throw Failure("Save bypassed the right pane before Keep mine")}
+        store.confirmOverwrite={false}
         try await wait { (try? await web.evaluateJavaScript("!!document.querySelector('.native-added')") as? Bool)==true }
         // Capture a real test window to inspect both banners and the strictly
         // local left editor without interacting with the user's open windows.
@@ -67,7 +72,7 @@ struct ExternalChangesSmoke {
         guard store.text.contains("LOCAL TOKEN") else { throw Failure("Keep mine changed the local text") }
         guard (try? await web.evaluateJavaScript("document.getElementById('native-disk-pane').hidden") as? Bool)==true else { throw Failure("Keep mine reopened for the same disk version") }
         guard await store.saveDocument()==false else { throw Failure("Keep mine disabled the save guard") }
-        try await wait { (try? await web.evaluateJavaScript("!document.getElementById('native-disk-pane').hidden") as? Bool)==true }
+        guard (try? await web.evaluateJavaScript("document.getElementById('native-disk-pane').hidden") as? Bool)==true else {throw Failure("No reopened the dismissed comparison")}
         let before=store.text
         guard await store.synchronizeEditor(),store.text==before else { throw Failure("Decorations changed the serialized document") }
         _=try await web.evaluateJavaScript("document.querySelector('[data-view=source]').click();document.querySelector('[data-view=preview]').click();true")
@@ -77,6 +82,10 @@ struct ExternalChangesSmoke {
         try newer.write(to:url,atomically:true,encoding:.utf8)
         await store.checkDisk()
         guard store.externalChange?.token != oldToken else{throw Failure("Panel did not advance to new disk version")}
+        store.confirmOverwrite={unreviewedPrompts+=1;return true}
+        guard await store.saveDocument()==false,unreviewedPrompts==0,
+              try String(contentsOf:url,encoding:.utf8)==newer else {throw Failure("Keep mine authorized an unreviewed newer disk version")}
+        store.confirmOverwrite={false}
         await store.applyExternal(token:oldToken)
         guard store.text.contains("LOCAL TOKEN") else{throw Failure("A stale Apply button replaced the document")}
         await store.applyExternal(token:store.externalChange!.token)
@@ -86,7 +95,8 @@ struct ExternalChangesSmoke {
         // Change disk and save immediately, without waiting for any watcher event.
         let missed="# Disk update immediately before Save\n"
         try missed.write(to:url,atomically:true,encoding:.utf8)
-        guard await store.saveDocument()==false,try String(contentsOf:url,encoding:.utf8)==missed,store.externalChange != nil else{throw Failure("Save bypassed the disk guard")}
+        guard await store.saveDocument()==false,try String(contentsOf:url,encoding:.utf8)==missed else{throw Failure("Save bypassed the disk guard")}
+        await store.checkDisk()
         // Changing only a toggle summary is a real edit, even with identical body text.
         await store.applyExternal(token:store.externalChange!.token)
         _=try await web.evaluateJavaScript("window.__mdEditorBridge.getEditor().commands.setContent({type:'doc',content:[{type:'toggle',attrs:{summary:'Changed summary'},content:[{type:'paragraph',content:[{type:'text',text:'Body'}]}]}]},true);true")
@@ -183,6 +193,32 @@ struct ExternalChangesSmoke {
         }
         await store.applyExternal(token:store.externalChange!.token)
         guard store.text==previewDisk,!store.isDirty else {throw Failure("Rich preview changed the bytes adopted by Apply")}
+        _=try await web.evaluateJavaScript("window.__mdEditorBridge.getEditor().commands.insertContentAt(1,'KEEP MY EDIT ')")
+        guard await store.synchronizeEditor() else {throw Failure("Local edit unavailable")}
+        let mine=store.text
+        try "# External overwrite target\n".write(to:url,atomically:true,encoding:.utf8)
+        await store.checkDisk()
+        store.keepLocal(token:store.externalChange!.token)
+        var prompts=0
+        store.confirmOverwrite={prompts+=1;return false}
+        guard await store.saveDocument()==false,prompts==1,store.text==mine,store.isDirty,
+              try String(contentsOf:url,encoding:.utf8)=="# External overwrite target\n" else {throw Failure("No changed a buffer or disk")}
+        store.confirmOverwrite={prompts+=1;return true}
+        guard await store.saveDocument(),prompts==2,!store.isDirty,store.externalChange==nil,
+              try String(contentsOf:url,encoding:.utf8)==mine else {throw Failure("Yes did not save the local version")}
+        _=try await web.evaluateJavaScript("window.__mdEditorBridge.getEditor().commands.insertContentAt(1,'MORE ')")
+        try "# Before consent\n".write(to:url,atomically:true,encoding:.utf8)
+        try await wait {store.externalChange?.disk?.text=="# Before consent\n"}
+        store.keepLocal(token:store.externalChange!.token)
+        store.confirmOverwrite={try! "# Changed during consent\n".write(to:url,atomically:true,encoding:.utf8);return true}
+        guard await store.saveDocument()==false,store.isDirty,
+              try String(contentsOf:url,encoding:.utf8)=="# Changed during consent\n" else {throw Failure("Consent overwrote a newer unapproved version")}
+        try await wait {(try? await web.evaluateJavaScript("!document.getElementById('native-disk-pane').hidden") as? Bool)==true}
+        await store.applyExternal(token:store.externalChange!.token)
+        _=try await web.evaluateJavaScript("window.__mdEditorBridge.getEditor().commands.insertContentAt(1,'AFTER APPLY ')")
+        store.confirmOverwrite={unreviewedPrompts+=1;return false}
+        guard await store.saveDocument(),unreviewedPrompts==0,
+              try String(contentsOf:url,encoding:.utf8)==store.text else {throw Failure("Save after Apply did not work normally")}
         window.orderOut(nil)
     }
 }

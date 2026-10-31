@@ -20,6 +20,16 @@ final class DocumentStore: ObservableObject {
     private var checkAgain = false
     private var dismissedExternalToken: String?
     @Published private(set) var externalChange: ExternalChange?
+    // Injectable for disk-conflict checks without driving a modal dialog.
+    var confirmOverwrite: () -> Bool = {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "File has been updated."
+        alert.informativeText = "Do you want to override the file?"
+        alert.addButton(withTitle: "Yes")
+        alert.addButton(withTitle: "No").keyEquivalent = "\u{1b}"
+        return alert.runModal() == .alertFirstButtonReturn
+    }
 
     struct ExternalChange {
         let token = UUID().uuidString
@@ -89,6 +99,7 @@ final class DocumentStore: ObservableObject {
             session = DocumentSession(text: loaded.text)
             diskBaseline = asDemo ? nil : loaded
             externalChange = nil
+            dismissedExternalToken = nil
             startObservation()
             editor?.loadDocument()
             WindowManager.shared.closeExtraEmptyWindowsSoon()
@@ -164,7 +175,7 @@ final class DocumentStore: ObservableObject {
         // A save panel can outlive an editor debounce; snapshot again afterwards.
         isSaving = true
         defer { isSaving = false }
-        let snapshot: EditorSnapshot
+        var snapshot: EditorSnapshot
         do { snapshot = try await captureEditorSnapshot() }
         catch {
             showError("Could not prepare the local version for saving.", recovery: Self.editorErrorDetail(error))
@@ -174,10 +185,33 @@ final class DocumentStore: ObservableObject {
         do {
             editor?.setSaveState("saving", revision: snapshot.revision)
             let expected = sameFile ? diskBaseline : try? DiskAccess.read(target)
-            let result = try await Task.detached(priority: .userInitiated) {
-                try DiskAccess.write(snapshot.markdown, to: target, expecting: expected)
+            let initialSnapshot = snapshot
+            var result = try await Task.detached(priority: .userInitiated) {
+                try DiskAccess.write(initialSnapshot.markdown, to: target, expecting: expected)
             }.value
             guard documentID == snapshot.documentID else { return false }
+            // Review comes first. Only Keep mine for this exact disk version
+            // enables the later Save confirmation; new/unreviewed versions
+            // must still open the independent right pane.
+            if sameFile, isDirty, case .changed(let current?) = result,
+               let reviewed = externalChange,
+               reviewed.token == dismissedExternalToken, reviewed.disk == current {
+                guard confirmOverwrite() else {
+                    // No keeps the user's buffer and the dismissed panel state.
+                    editor?.setSaveState("failed", revision: session.revision)
+                    resumeEditing()
+                    return false
+                }
+                guard documentID == snapshot.documentID else { return false }
+                snapshot = try await captureEditorSnapshot()
+                let approvedSnapshot = snapshot
+                // Consent covers this exact disk version. A second external
+                // write during the dialog must still fail the coordinated check.
+                result = try await Task.detached(priority: .userInitiated) {
+                    try DiskAccess.write(approvedSnapshot.markdown, to: target, expecting: current)
+                }.value
+                guard documentID == snapshot.documentID else { return false }
+            }
             guard case .written(let written) = result else {
                 editor?.setSaveState("failed", revision: session.revision)
                 if sameFile {
@@ -189,6 +223,7 @@ final class DocumentStore: ObservableObject {
             }
             diskBaseline = written
             externalChange = nil
+            dismissedExternalToken = nil
             editor?.clearComparison()
             guard documentID == snapshot.documentID else { return true }
             fileURL = target
@@ -334,6 +369,7 @@ final class DocumentStore: ObservableObject {
             session.didSave(applied)
             diskBaseline = shown
             externalChange = nil
+            dismissedExternalToken = nil
             editor?.setBaseline(shown.text, revision: applied.revision)
             editor?.clearComparison()
         } catch {

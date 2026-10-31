@@ -19,10 +19,7 @@ window.NativeEditorIntegration = {
           }
           return true;
         }
-        const json=node.toJSON();
-        const normalize=n=>{if(n.attrs) delete n.attrs.dir;n.content?.forEach(normalize)};
-        normalize(json);
-        result.push({key:JSON.stringify(json),kind:node.type.name,
+        result.push({key:window.SourceDocument.key(node),kind:node.type.name,
           text:node.isTextblock ? node.textBetween(0,node.content.size,'\n','\ufffc') : (node.attrs.alt||node.type.name),
           from:pos,to:pos+node.nodeSize,inline:node.isTextblock});
         return false;
@@ -36,10 +33,7 @@ window.NativeEditorIntegration = {
         props:{decorations:state=>key.getState(state)}}));
     }
     api.activeState=()=>{
-      const json=active().state.doc.toJSON();
-      const normalize=n=>{if(n.attrs)delete n.attrs.dir;n.content?.forEach(normalize)};
-      normalize(json);
-      return {mode:tools.isSource()?'source':'preview',signature:JSON.stringify(json)};
+      return {mode:tools.isSource()?'source':'preview',signature:window.SourceDocument.key(active().state.doc)};
     };
     let cachedMarkdown=null,cachedUnits=null;
     const baseline=markdown=>{if(markdown!==cachedMarkdown){cachedUnits=units(tools.parse(markdown));cachedMarkdown=markdown}return cachedUnits};

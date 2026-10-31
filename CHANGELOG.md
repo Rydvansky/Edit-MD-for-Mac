@@ -1,177 +1,43 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## [2.1.19] - 2026-10-31
 
-This project follows semantic versioning: `MAJOR.MINOR.PATCH`.
-
-## [Unreleased]
-
-### Changed
-
-- Renamed the app to Edit MD for Mac. The app bundle, executable, Swift package, release artifacts, window titles, documentation, screenshots, and GitHub repository now use the new name.
-- Match regular Markdown table text to the surrounding editor text size, including the selected text-size setting.
-- Align all Markdown table cell text at the top left, including cells with explicit alignment markers.
-
-## [2.0.16] - 2026-10-31
-
-### Changed
-
-- Show external disk changes in an independent read-only Preview, including tables, formatting and expanded toggles. Keep yellow additions and red struck-out removals, even when the local editor is in Code mode.
-- Show frontmatter in the disk Preview so metadata changes remain visible. Preserve readable disk source as a fallback if Preview cannot render it.
-
-### Fixed
-
-- Keep empty toggle containers when pasting formatted blocks into their body. Regression checks use the actual clipboard pipeline for empty and nested toggles, Undo/Redo and Code/Preview round trips.
-- Prevent editing toggle titles in read-only previews. Disk Preview also rejects document-changing transactions and keeps the exact disk bytes for Apply.
-
-## [2.0.15] - 2026-10-31
-
-### Fixed
-
-- Disk comparison no longer requires serializing a dirty Preview buffer. Successfully read external data remains visible even when the local editor cannot produce a Save snapshot.
-- Separate file-read, editor-check and Apply errors. Editor warnings no longer replace readable disk content with a generic error message.
-- Apply cancels obsolete debounced callbacks rather than serializing the discarded local document; one Undo still restores that document.
-- If highlighting fails, show the full disk source without highlights instead of hiding it. Local highlight failures cannot break the right pane.
-- Add regression checks for unsaved Preview changes followed by external writes on both full demo files, editor conversion failures, Keep mine, Apply/Undo, and recovery.
-
-## [2.0.14] - 2026-10-31
-
-### Fixed
-
-- Preserve Markdown source ranges instead of regenerating the entire file after a rich edit. Untouched blocks, reference definitions, HTML, table alignment, whitespace and line endings remain byte-identical.
-- Validate changed blocks against the editor model. Prefer minimal text edits to preserve their original spelling; reject conversions that would silently lose structure.
-- Keep Code/Preview transitions source-stable, including nested quotes and formatted toggles. Preserve BOM and current frontmatter across mode changes.
-- Keep the left editor strictly local; deleted baseline text is shown only in the right disk comparison.
+Consolidated release notes for Edit MD for Mac.
 
 ### Added
 
-- “No, keep mine” next to “Apply changes?” closes comparison without writing or replacing local text. The same disk version stays dismissed until Save or another external change; the pre-save guard remains active.
-- Source-fidelity checks cover both demo files, H1-only changes, every editable demo block, repeated mode changes/reopening, structural edits, nested quotes, BOM and CRLF, plus native disk saves and buffer ownership.
-
-## [2.0.13] - 2026-10-31
-
-### Added
-
-- Native File → Save As… with Command-Shift-S. It uses the same latest-editor snapshot and safe write flow as the comparison banner, then makes the new file active.
-
-## [2.0.12] - 2026-10-31
-
-### Added
-
-- Watch external changes using parent-directory events, metadata polling, and focus/wake recovery checks.
-- Automatically refresh clean documents. Dirty documents show two independent panes with local and external changes, yellow additions, red deleted-text overlays, and persistent action banners.
-- Add “Save my version as…” and “Apply changes?”; Apply replaces the complete local document with the displayed disk version, without writing to disk, and supports one Undo.
-- Compare file bytes inside coordinated writes so a missed file event cannot silently overwrite a newer disk version. Deleted or unreadable files preserve the local buffer.
-- Compute comparison using bounded-memory patience anchors in a Web Worker; local highlights refresh after a typing pause.
-
-### Fixed
-
-- Keep Code/Preview switches and decorations out of user edit tracking; retain unchanged raw Markdown until a real edit.
-- Preserve edits in meaningful container attributes, including toggle summaries.
-
-## [2.0.11] - 2026-10-31
-
-### Fixed
-
-- Toggle serialization now preserves child blocks and inline formatting instead of flattening `textContent` and losing images/dividers.
-- Preserve block boundaries and separate adjacent lists inside toggles so Preview/Code transitions and reopening retain their structure.
-- Escape summary text when writing HTML to preserve literal angle brackets and ampersands.
-- Add a WebKit regression check covering headings, marks, links, nested lists, tasks, quotes, code, tables, images, dividers, and nested toggles across repeated mode switches and reparses.
-
-## [2.0.10] - 2026-10-31
+- Local Markdown opening, editing, drag and drop, a bundled demo, duplicate, copy content/path, reveal in Finder, and HTML/PDF export.
+- Native File → Save As… with Command-Shift-S, shared with “Save my version as…” in the comparison banner.
+- Automatic detection of external file changes through directory events, polling, and focus/wake checks. Unedited documents refresh automatically.
+- Independent read-only Preview for external changes when local edits are pending. Yellow shows additions; red struck-out text shows removals. Tables, formatting, frontmatter and expanded toggles remain visible even when the local editor is in Code mode.
+- “Apply changes?” replaces the local document with the displayed disk version and supports one Undo. “No, keep mine” dismisses that version; subsequent Save asks for Yes/No overwrite confirmation. A newer external version opens comparison again.
+- Rich editing with headings, inline formatting, text colors, highlighting, lists, tasks, quotes, callouts, toggles, tables, images, code, Mermaid diagrams, Kanban/table boards and whiteboards.
+- Editable toggle titles, a full block conversion picker, table row/column append controls, and resizable columns with widths stored in Markdown delimiter dash counts.
+- Persistent preview settings, appearance options, fonts, text sizes, page widths, wrapping, smart typography and outline. System appearance controls and the Markdown guide are available through the macOS menus.
+- Local `.app`, `.zip` and `.dmg` packaging, plus signing and notarization scripts.
 
 ### Changed
 
-- Use one web editor for both source and preview modes; remove the hidden native editor, unused native preview, and legacy navigation pane.
-- Separate native document state, system actions, web settings, and the editor transport.
-- Add a versioned document protocol with document/channel identities, increasing revisions, snapshots, and acknowledgments.
-- Save, close, switch, and quit now await the same editor snapshot. Writes run in order and older save completions preserve newer unsaved edits.
-- Preserve the original Markdown bytes when opening and closing an unedited document.
-- Render guide examples with SwiftUI's built-in Markdown support, without the document parser.
+- Renamed the app to Edit MD for Mac, including its bundle, executable, package, window titles, documentation and release artifacts. Updated the app icon.
+- Use one web editor for Code and Preview in a native macOS shell. Separate document state, disk operations, system actions, settings and the versioned editor transport; remove the hidden native editor, obsolete renderer and legacy navigation.
+- Keep document/channel identities, increasing revisions, acknowledged snapshots and ordered writes shared across Save, close, switch and quit. Window titles follow the active file and the status bar shows its path and document details.
+- Simplify the in-window interface and remove unused logo and AI controls. Retain the MD Editor Plus attribution and license notices.
+- Match table text to the surrounding editor size, align cells at the top left, wrap long content, fill the preview width and keep grid lines continuous. Expand the demo with dense and wrapping tables.
+- Consolidate development release notes under version 2.1.19 and keep bundle version metadata aligned with VERSION during packaging.
+
+### Fixed
+
+- Preserve original Markdown bytes for untouched blocks and unedited documents. Rich changes do not rewrite unrelated quotes, tables, references, HTML, spacing, line endings, byte-order marks or frontmatter.
+- Preserve toggle formatting, nested blocks, images, dividers and adjacent list boundaries through insertion, Save, Code/Preview and reopening. Pasting formatted blocks into an empty toggle keeps its container.
+- Preserve typed spaces, empty paragraphs, callout formatting, highlight attributes and literal newlines. Compare equivalent CSS colors consistently and map complete board regions to their source. Use validated compact HTML within changed fragments when Markdown cannot express the edited structure.
+- Route Command-S through native Save before conversion so errors are reported. Background conversion errors keep the editor usable; failed snapshots restore the prior input-lock state.
+- Keep local and disk buffers independent. A local conversion or highlighting failure cannot hide readable disk data; Preview rendering failure falls back to readable source. Apply uses the exact disk text and preserves the prior local model for Undo.
+- Check disk bytes inside coordinated writes to prevent overwriting unreviewed changes. Overwrite confirmation applies only after Keep mine for the exact reviewed version; another write during confirmation remains protected. Missing and unreadable files preserve local edits.
+- Keep mode changes, toggle expansion and comparison decorations out of dirty tracking. Save after Apply works normally; declined overwrite preserves local edits and the dismissed pane.
+- Preserve newer edits when an older save completes, reject stale cross-document messages, and keep canceled close/switch operations editable.
 
 ### Verification
 
-- Add document-session checks and expand the WebKit smoke checks for stale identities, pending edits, save races, and both editor modes.
-
-## [2.0.9] - 2026-08-09
-
-### Added
-
-- More block actions: Heading 4–6, callouts, toggles, tables, Mermaid diagrams, images, Kanban/table boards, and whiteboards.
-- Inline text highlighting and text-color controls in the editor.
-
-### Changed
-
-- Simplified the preview appearance picker to Light, Claude, Dark, and macOS system appearance.
-- Replaced the app icon with the selected minimal text-lines and overflow-menu mark.
-
-## [2.0.7] - 2026-08-09
-
-### Fixed
-
-- Preview settings now persist when a document is closed and reopened.
-
-## [2.0.6] - 2026-08-05
-
-### Fixed
-
-- The window title now shows the current file name ("<file> — MD Design"). SwiftUI's WindowGroup owns NSWindow.title and kept resetting the imperatively set title to the default; the title is now driven declaratively via .navigationTitle and updates on open/save-as. The edited-state dot and the proxy icon are unchanged.
-
-## [2.0.5] - 2026-08-05
-
-### Changed
-
-- Renamed the app to MD-design-macOS (window titles now show "<file> — MD Design"; bundle, executable, and dist artifacts use the new name).
-
-## [2.0.4] - 2026-08-05
-
-### Added
-
-- Resizable table columns in preview: drag any column border to resize (thin blue handle, 60px minimum). Widths persist in the Markdown file itself as proportional dash counts in the table's separator row (`| --- | ------------ |`, ~1 dash ≈ 20px) — still 100% valid Markdown for any other renderer — and are restored on reopen. Files with uniform `---` separators never gain width attributes, and hand-edited dash counts round-trip byte-identical when unedited.
-
-## [2.0.3] - 2026-08-05
-
-### Added
-
-- "Turn into" in the block-handle menu now opens the full block picker (same sections, filter box, and drill-down as the "+" menu); clicking a block converts the current block instead of inserting a new one. Added conversion targets: Toggle, Divider, Board: Kanban, and Whiteboard (text blocks seed the first kanban card / mermaid node label so content isn't dropped).
-- Toggle titles are now inline-editable in preview: click the title text to edit, Enter/blur commits, Escape cancels; the disclosure arrow still expands/collapses independently.
-- Tables now show Notion-style "+" append bands: hovering just past the bottom edge reveals a full-width band that appends a row, and hovering just past the right edge reveals a full-height band that appends a column.
-
-## [2.0.2] - 2026-08-05
-
-### Changed
-
-- Removed the in-window header panel. Open (⌘O) and Save (⌘S) remain in the File menu; font-size commands (⌘+/⌘−) stay in the menu; preview display settings live in the preview's own toolbar/settings panel.
-- Appearance (theme) switching moved to the menu bar: View → Appearance → System / Light / Dark (checkmark on the active mode; applies to all windows).
-- Markdown Guide moved to the Help menu (⌘/) and opens as a sheet in the focused window.
-- Window title now shows "<file name> — MD View-Edit", with the standard edited-state dot and a proxy icon for saved files.
-- The status bar now shows the full file path (middle-truncated) plus size, character count, encoding, and an Edited marker.
-- Removed the webview toolbar logo and the "✨ Using AI" menu (bubble-menu ⋯ entry, AI transform panel, and the block-picker flyout AI section). AI features were inert in this host.
-
-## [2.0.1] - 2026-08-05
-
-### Changed
-
-- Replaced the side-by-side editor/preview split with a single full-width surface: Code mode (native source editor) or Preview mode, toggled from the header.
-- Preview mode is now a fully editable WYSIWYG surface powered by the bundled md-editor-plus web editor (TipTap/ProseMirror): type directly in the rendered document, edit tables inline, click task checkboxes, use slash commands, bubble-menu formatting, callouts, code blocks with syntax highlighting, and mermaid diagrams.
-- Preview display settings (theme incl. sepia/claude, font, text size, page width, full width, dark code/source options, word wrap, smart typography, outline) now come from the md-editor-plus settings panel inside the preview and persist across launches.
-- Save lifecycle (saving/saved indicator), ⌘S, reload-from-disk, copy content/path, reveal in Finder, duplicate, HTML export, and PDF export are wired through the native host bridge.
-
-## [1.0.1] - 2026-06-13
-
-### Changed
-
-- Improved Markdown preview table layout so cells wrap full content instead of clipping.
-- Tables now fill the preview width while row heights grow with wrapped content.
-- Table grid lines now span full row heights for wrapped cells.
-- Expanded the bundled demo file with wrapping and dense table test cases.
-
-## [1.0.0] - 2026-04-25
-
-### Added
-
-- Initial open source release of MD_View-Edit_macOS.
-- Native macOS Markdown editor and previewer.
-- Local file opening, editing, saving, drag and drop, and bundled demo file.
-- Light, dark, and system appearance modes.
-- Release packaging scripts for `.app`, `.zip`, and `.dmg` artifacts.
+- Add native session, bridge and disk checks for pending edits, concurrent saves, stale messages, close/cancel, external changes, overwrite decisions, Apply/Undo and recovery from conversion failures.
+- Check both full demo files for exact H1-only edits, unchanged surrounding source, repeated Code/Preview cycles and reopening.
+- Run 4,862 input and formatting checks across demo blocks, plus targeted toggle copy/paste, nested formatting, table widths, images, Mermaid, board edits and bounded-memory comparison checks.

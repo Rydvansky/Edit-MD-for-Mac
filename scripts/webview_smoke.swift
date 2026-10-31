@@ -13,8 +13,8 @@ let webviewDir = URL(fileURLWithPath: root).appendingPathComponent("Resources/We
 let indexURL = webviewDir.appendingPathComponent("index.html")
 let demoURL = URL(fileURLWithPath: root).appendingPathComponent("markdown_demo.md")
 let demoMarkdown = (try? String(contentsOf: demoURL, encoding: .utf8)) ?? "# Hello\n\n- [ ] task\n"
-// Fixture exercising v2.0.3 features: a toggle (editable title NodeView) and a
-// table (TableWithRail NodeView with the "+" append bands). v2.0.4 adds two
+// Fixture exercising block controls: a toggle (editable title NodeView) and a
+// table (TableWithRail NodeView with the "+" append bands). It includes two
 // column-width tables: one uniform-dash (must stay attr-free) and one with
 // proportional dash counts (must restore colwidth 80/200).
 let fixture = """
@@ -165,7 +165,7 @@ if isTrue(info["aiMenuEntry"]) { NSLog("[smoke] FAIL: turn-into-ai menu entry st
 if isTrue(info["usingAiText"]) { NSLog("[smoke] FAIL: 'Using AI' text still present in DOM"); exit(1) }
 NSLog("[smoke] removals verified: no logo, no AI menu/panel")
 
-// v2.0.3 feature checks (DOM presence):
+// Block-control checks (DOM presence):
 // - toggle title is wrapped in the editable .toggle-title span
 // - tables render through TableWithRail with the "+" append bands in the DOM
 // - the old Turn-into flyout element is gone (full picker list replaces it)
@@ -175,7 +175,7 @@ if !isTrue(info["tableWrap"]) { NSLog("[smoke] FAIL: .mp-table wrapper missing")
 if !isTrue(info["tableAddRow"]) { NSLog("[smoke] FAIL: .mp-table-add-row band missing"); exit(1) }
 if !isTrue(info["tableAddCol"]) { NSLog("[smoke] FAIL: .mp-table-add-col band missing"); exit(1) }
 if !isTrue(info["flyoutGone"]) { NSLog("[smoke] FAIL: .block-picker-flyout still present"); exit(1) }
-NSLog("[smoke] v2.0.3 verified: toggle title span, table add bands, no flyout")
+NSLog("[smoke] Block controls verified: toggle title span, table add bands, no flyout")
 
 // Round-trip: ask the webview for its authoritative markdown.
 var roundTrip: Any?
@@ -198,7 +198,7 @@ if !serialized.contains("<summary>Smoke toggle</summary>") {
     exit(1)
 }
 NSLog("[smoke] toggle summary round-trips through markdown serialize")
-// v2.0.4 byte-stability: an unedited proportional-dash table must serialize
+// Column-width byte stability: an unedited proportional-dash table must serialize
 // back with the identical delimiter row (parse stamps colwidth at parse time,
 // serialize re-derives the same dash counts).
 if !serialized.contains("| ---- | ---------- |") {
@@ -207,7 +207,7 @@ if !serialized.contains("| ---- | ---------- |") {
 }
 NSLog("[smoke] dash-count delimiter round-trips byte-identical when unedited")
 
-// v2.0.4 — column widths in the parsed doc: uniform table attr-free,
+// Column widths in the parsed doc: uniform table attr-free,
 // proportional table gets colwidth [80, 200] (4/10 dashes × 20px).
 func evalJS(_ js: String, _ label: String) -> Any? {
     var out: Any?

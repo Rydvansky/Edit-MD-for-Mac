@@ -27,6 +27,7 @@ struct NativeBridgeSmoke {
         try original.write(to: first, atomically: true, encoding: .utf8)
         try "# Second\n".write(to: second, atomically: true, encoding: .utf8)
         let store = DocumentStore()
+        store.confirmOverwrite = { false }
         await store.open(first)
         let bridge = WebEditorBridge()
         let webView = bridge.makeWebView(store: store)
@@ -90,6 +91,16 @@ struct NativeBridgeSmoke {
             await store.open(copy)
             try await waitForEditor(bridge)
             _=try await webView.evaluateJavaScript("(() => { const ed=window.__mdEditorBridge.getEditor(); ed.commands.insertContentAt({from:1,to:ed.state.doc.firstChild.nodeSize-1},'Локальний незбережений H1');ed.commands.setTextSelection(ed.state.doc.firstChild.nodeSize-1);ed.commands.splitBlock();ed.commands.insertContent('Локальний новий абзац');return true})()")
+            _=try await webView.evaluateJavaScript(#"""
+            (()=>{
+              const ed=window.__mdEditorBridge.getEditor();let toggle=-1;
+              ed.state.doc.descendants((node,pos)=>{if(toggle<0&&node.type.name==='toggle')toggle=pos});
+              if(toggle<0)throw Error('Missing fixture toggle');
+              ed.view.dispatch(ed.state.tr.setNodeMarkup(toggle,undefined,{...ed.state.doc.nodeAt(toggle).attrs,summary:'Локальна назва toggle'}).insertText(' Локальний текст  ',toggle+2));
+              ed.view.dispatch(ed.state.tr.insertText('  ',ed.state.doc.firstChild.nodeSize-1));
+              return true;
+            })()
+            """#)
             let localModel=try await webView.evaluateJavaScript("JSON.stringify(window.__mdEditorBridge.getEditor().getJSON())") as! String
             let end=source.firstIndex(of:"\n")!
             let disk="# Зовнішній H1"+source[end...]+"\nЗовнішній новий абзац.\n"
@@ -104,6 +115,14 @@ struct NativeBridgeSmoke {
             }
             guard visible,try await webView.evaluateJavaScript("JSON.stringify(window.__mdEditorBridge.getEditor().getJSON())") as? String==localModel else { throw Failure("Disk preview changed the unsaved left document") }
             guard await store.synchronizeEditor(),store.text.contains("Локальний новий абзац"),!store.text.contains("Зовнішній новий абзац") else { throw Failure("Preview edit could not be preserved as local Markdown") }
+            let pending=store.text
+            store.keepLocal(token:store.externalChange!.token)
+            store.confirmOverwrite={true}
+            _=try await webView.evaluateJavaScript("document.dispatchEvent(new KeyboardEvent('keydown',{key:'s',metaKey:true,bubbles:true,cancelable:true}));true")
+            let saveDeadline=Date().addingTimeInterval(12)
+            while store.isDirty,Date()<saveDeadline {try await Task.sleep(nanoseconds:50_000_000)}
+            guard !store.isDirty,try String(contentsOf:copy,encoding:.utf8)==pending else {throw Failure("Cmd+S failed after local heading/toggle edits and external H1 change")}
+            store.confirmOverwrite={false}
         }
         // Both H1s change concurrently: the left Code pane must remain local.
         await store.open(first)
@@ -122,6 +141,23 @@ struct NativeBridgeSmoke {
         guard try await webView.evaluateJavaScript("document.querySelector('#source-editor .native-deleted')===null") as? Bool==true else { throw Failure("Deleted baseline text is visible in the left Code pane") }
         _=try await webView.evaluateJavaScript("document.querySelector('[data-view=preview]').click();true")
         guard await store.synchronizeEditor(),store.text==local else { throw Failure("Preview replaced the local buffer") }
+        // A conversion failure must reach the native error path for Cmd+S,
+        // preserve the model, and undo any temporary close/switch input lock.
+        await store.open(second)
+        try await waitForEditor(bridge)
+        _=try await webView.evaluateJavaScript("window.__savedGetMarkdown=window.__mdEditorBridge.getMarkdown;window.__mdEditorBridge.getMarkdown=()=>{throw Error('Injected conversion failure')};true")
+        do { _=try await bridge.snapshot(lock:true);throw Failure("Snapshot failure injection did not run") }
+        catch is Failure {throw Failure("Snapshot failure injection did not run")}
+        catch {}
+        guard try await webView.evaluateJavaScript("!document.body.inert") as? Bool==true else {throw Failure("Failed snapshot left input locked")}
+        store.error=nil
+        _=try await webView.evaluateJavaScript("document.dispatchEvent(new KeyboardEvent('keydown',{key:'s',metaKey:true,bubbles:true,cancelable:true}));true")
+        let errorDeadline=Date().addingTimeInterval(10)
+        while store.error==nil,Date()<errorDeadline {try await Task.sleep(nanoseconds:50_000_000)}
+        guard store.error?.recovery?.contains("Injected conversion failure")==true else {throw Failure("Cmd+S silently swallowed conversion failure")}
+        _=try await webView.evaluateJavaScript("window.__mdEditorBridge.getMarkdown=window.__savedGetMarkdown;const ed=window.__mdEditorBridge.getEditor();ed.view.dispatch(ed.state.tr.insertText(' RECOVERED ',1));true")
+        store.error=nil
+        guard await store.saveDocument(),store.text.contains("RECOVERED"),try await webView.evaluateJavaScript("!document.body.inert") as? Bool==true else {throw Failure("Editor did not recover after a failed Save")}
         window.orderOut(nil)
     }
 

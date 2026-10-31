@@ -77,9 +77,16 @@
           comparison=new window.ExternalComparison(post,()=>revision);
           break;
         case "snapshot": {
+          const wasInert=document.body.inert;
           if (command.lock) document.body.inert = true;
-          const markdown=capture();
-          return { protocolVersion: version, channelID, requestID: command.requestID, documentID, revision, markdown };
+          try {
+            const markdown=capture();
+            return { protocolVersion: version, channelID, requestID: command.requestID, documentID, revision, markdown };
+          } catch(error) {
+            // Failed close/save preparation must not leave keyboard input inert.
+            document.body.inert=wasInert;
+            throw error;
+          }
         }
         case "baseline": {
           originalMarkdown=command.markdown;

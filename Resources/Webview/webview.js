@@ -211815,7 +211815,7 @@ ${element3.innerHTML}
       return {
         color: {
           default: null,
-          parseHTML: (element3) => element3.getAttribute("data-color") || element3.style.backgroundColor,
+          parseHTML: (element3) => element3.getAttribute("data-color") || element3.style.backgroundColor || null,
           renderHTML: (attributes) => {
             if (!attributes.color) {
               return {};
@@ -237414,7 +237414,7 @@ ${element3.innerHTML}
       this.normalizeBlocks(node2);
       node2.querySelectorAll("*").forEach((el2) => {
         var _el$nextSibling;
-        if (((_el$nextSibling = el2.nextSibling) === null || _el$nextSibling === void 0 ? void 0 : _el$nextSibling.nodeType) === Node.TEXT_NODE && !el2.closest("pre")) {
+        if (((_el$nextSibling = el2.nextSibling) === null || _el$nextSibling === void 0 ? void 0 : _el$nextSibling.nodeType) === Node.TEXT_NODE && !el2.closest("pre,[data-md-whitespace]")) {
           el2.nextSibling.textContent = el2.nextSibling.textContent.replace(/^\n/, "");
         }
       });
@@ -237669,7 +237669,9 @@ ${body}
       };
     },
     parseHTML() {
-      return [{ tag: "div[data-callout]" }];
+      // Rendered callouts include decorative emoji outside their editable
+      // content. Parse only that content, just as toggle excludes its summary.
+      return [{ tag: "div[data-callout]", contentElement: dom => dom.querySelector(":scope > .callout-content") || dom }];
     },
     renderHTML({ node: node2, HTMLAttributes }) {
       return [
@@ -250459,12 +250461,27 @@ ${body}
 
   // src/webview/editor.ts
   var lowlight = createLowlight(grammars);
+  function preserveNativeWhitespace(extension) {
+    return extension.extend({
+      parseHTML() {
+        const rules=this.parent?.()||[];
+        // Only generated fallback HTML opts into literal newlines. Ordinary
+        // Markdown soft breaks keep their standard rendering behavior.
+        return [...rules.filter(rule=>rule.tag).map(rule=>({...rule,
+          tag:rule.tag+'[data-md-whitespace]',preserveWhitespace:'full',priority:60})),...rules];
+      }
+    });
+  }
   function editorExtensions(options2) {
     return [
       StarterKit.configure({
         codeBlock: false,
+        paragraph: false,
+        heading: false,
         dropcursor: { color: "#2383e2", width: 3 }
       }),
+      preserveNativeWhitespace(Paragraph),
+      preserveNativeWhitespace(Heading),
       mermaidBlock_default.configure({ lowlight, HTMLAttributes: { dir: "ltr" } }),
       TaskList,
       TaskItem.configure({ nested: true }),
@@ -250489,7 +250506,7 @@ ${body}
       Color4,
       Highlight.configure({ multicolor: true }),
       Markdown.configure({ transformCopiedText: true }),
-      callout_default,
+      preserveNativeWhitespace(callout_default),
       board_default2,
       toggle_default,
       blockDirection_default,
@@ -250569,6 +250586,9 @@ ${body}
     const editor = new Editor({
       element: element3,
       extensions: editorExtensions(options2),
+      // Spaces typed in rich blocks are document text, including at the edges.
+      // Use the same whitespace policy for initial load, refresh and validation.
+      parseOptions: { preserveWhitespace: true },
       editorProps: {
         attributes: { spellcheck: "true" }
       },
@@ -250584,13 +250604,28 @@ ${body}
     const parseSource = (markdown, env) => {
       const prepared=preprocessMarkdownBoards(preprocessMarkdownCallouts(markdown));
       setPendingTableWidths(scanTableDashCounts(prepared));
-      return createDocument(editor.storage.markdown.parser.parse(prepared,{env}),editor.schema);
+      return createDocument(editor.storage.markdown.parser.parse(prepared,{env}),editor.schema,{preserveWhitespace:true});
     };
-    editor.sourceDocument=new window.SourceDocument(editor,split2.body,parseSource,node=>serializeHTML(node,editor.state.doc));
+    // Avoid formatBlock's pretty-print newlines: those are real whitespace
+    // under the rich editor's preservation policy.
+    editor.sourceDocument=new window.SourceDocument(editor,split2.body,parseSource,node=>{
+      const container=document.createElement('div');
+      container.innerHTML=getHTMLFromFragment(Fragment.from(node),editor.schema);
+      for(const element of container.querySelectorAll('p,h1,h2,h3,h4,h5,h6,div[data-callout]'))element.setAttribute('data-md-whitespace','preserve');
+      // A blank line would end Markdown's HTML block before its closing tag.
+      // Entities preserve literal model newlines without that block boundary.
+      return container.innerHTML.replace(/\n/g,'&#10;');
+    });
     editor.storage.markdown.getMarkdown=()=>editor.sourceDocument.serialize();
     debounce4 = createFlushableDebounce(() => {
-      const markdown2 = editor.storage.markdown.getMarkdown();
-      onChange(editor === _editor ? getCurrentMarkdown() : frontmatter + markdown2);
+      try {
+        const markdown2 = editor.storage.markdown.getMarkdown();
+        onChange(editor === _editor ? getCurrentMarkdown() : frontmatter + markdown2);
+      } catch(error) {
+        // An incomplete edit can be temporarily unrepresentable. Keep the
+        // dirty model editable; explicit Save reports any remaining failure.
+        console.warn('Pending rich edit could not be converted:',error.message);
+      }
     }, 500);
     createBubbleMenu(editor);
     createImageBubbleMenu(editor);
@@ -250635,7 +250670,7 @@ ${body}
     const sel = _editor.state.selection;
     const savedFrom = sel.from;
     const savedTo = sel.to;
-    _editor.commands.setContent(next3);
+    _editor.commands.setContent(next3,false,{preserveWhitespace:true});
     _editor.sourceDocument?.reset(split2.body);
     try {
       const docSize = _editor.state.doc.content.size;
@@ -250733,6 +250768,7 @@ ${body}
     return new Editor({
       element: element3,
       editable: false,
+      parseOptions: { preserveWhitespace: true },
       extensions: editorExtensions({ suppressEmptyPlaceholder: true }),
       content: body
     });
@@ -253274,11 +253310,9 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
             }
             if (mod && !e3.shiftKey && !e3.altKey && (e3.key === "s" || e3.key === "S")) {
               e3.preventDefault();
-              flushPendingEdit();
-              const md2 = sourceMode ? getSourceMarkdown() : getCurrentMarkdown();
-              currentMarkdown = md2;
-              rememberSent(md2);
-              vscode.postMessage({ type: "save", markdown: md2 });
+              // Native Save owns snapshot conversion and error reporting. Do
+              // not throw here before the command ever reaches that path.
+              vscode.postMessage({ type: "save" });
             }
           });
           try {
@@ -253435,7 +253469,7 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
         const split=splitFrontmatter(markdown);
         const body=preprocessMarkdownBoards(preprocessMarkdownCallouts(split.body));
         setPendingTableWidths(scanTableDashCounts(body));
-        return createDocument(getEditor().storage.markdown.parser.parse(body),getEditor().schema);
+        return createDocument(getEditor().storage.markdown.parser.parse(body),getEditor().schema,{preserveWhitespace:true});
       },
       replace(markdown) {
         // Explicit replacement does not need to serialize the discarded buffer.
