@@ -168,7 +168,7 @@ The app watches the open file's parent directory and checks again on focus/wake 
 
 Comparison uses a Web Worker and bounded-memory patience anchors. Local highlights refresh after a typing pause. Decorative highlights never enter the Markdown or its undo history. Code/Preview changes are service operations, not user edits.
 
-The right pane shows Markdown source so every external character can be selected and copied. Its disk read is independent of local Save conversion. If the local editor cannot provide a snapshot, the disk version remains available; if comparison highlighting fails, the full disk source is still shown. Arbitrary programs that ignore macOS file coordination can still race a write; file notifications alone are not a guarantee of exclusive access.
+The right pane shows an independent read-only Preview with formatting, tables and expanded toggles, even while the local editor is in Code mode. Frontmatter is visible as a code block. Its disk read is independent of local Save conversion. If the local editor cannot provide a snapshot or comparison highlighting fails, the disk version remains available. A Preview rendering failure falls back to readable disk source. Apply always adopts the exact disk text, without serializing the Preview. Arbitrary programs that ignore macOS file coordination can still race a write; file notifications alone are not a guarantee of exclusive access.
 
 Additional checks:
 

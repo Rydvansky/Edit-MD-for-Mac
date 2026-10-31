@@ -45,8 +45,9 @@ struct ExternalChangesSmoke {
         try await wait {store.externalChange != nil}
         guard store.text.contains("LOCAL TOKEN"),try String(contentsOf:url,encoding:.utf8)==external else{throw Failure("External change overwrote a buffer or disk")}
         try await wait {
-            (try? await web.evaluateJavaScript("!document.getElementById('native-disk-pane').hidden && document.querySelector('.native-diff-add')!==null && document.querySelector('.native-diff-delete')!==null && !document.querySelector('#native-disk-pane button').disabled") as? Bool)==true
+            (try? await web.evaluateJavaScript("!document.getElementById('native-disk-pane').hidden && document.querySelector('#native-disk-diff .ProseMirror h1')!==null && document.querySelector('#native-disk-diff .native-diff-add')!==null && document.querySelector('#native-disk-diff .native-diff-delete')!==null && !document.querySelector('#native-disk-pane button').disabled") as? Bool)==true
         }
+        guard try await web.evaluateJavaScript("document.querySelector('#native-disk-diff .ProseMirror').getAttribute('contenteditable')==='false'") as? Bool==true else {throw Failure("Disk preview is editable")}
         try await wait { (try? await web.evaluateJavaScript("!!document.querySelector('.native-added')") as? Bool)==true }
         // Capture a real test window to inspect both banners and the strictly
         // local left editor without interacting with the user's open windows.
@@ -144,6 +145,44 @@ struct ExternalChangesSmoke {
         _=try await web.evaluateJavaScript("window.__mdEditorBridge.getMarkdown=window.__savedGetMarkdown;true")
         await store.checkDisk()
         guard store.text.contains("Readable disk"),!store.isDirty else { throw Failure("Editor recovery did not refresh the clean document") }
+        // The disk pane stays rich when the left is Code, renders nested
+        // formatting, and cannot change either document through its controls.
+        let previewBase="---\nkind: old\n---\n\n# Disk preview\n\n<details>\n<summary>Section</summary>\n\nOld **bold** text.\n\n</details>\n\n| Head |\n| --- |\n| Old cell |\n"
+        let previewDisk=previewBase.replacingOccurrences(of:"kind: old",with:"kind: new").replacingOccurrences(of:"Old **bold**",with:"New **bold**").replacingOccurrences(of:"Old cell",with:"New cell")
+        try previewBase.write(to:url,atomically:true,encoding:.utf8)
+        await store.open(url)
+        try await wait {try await bridge.snapshot(lock:false) != nil}
+        _=try await web.evaluateJavaScript("window.__mdEditorBridge.getEditor().commands.insertContentAt(1,'LOCAL ')")
+        guard await store.synchronizeEditor() else {throw Failure("Cannot capture local preview edits")}
+        let localPreview=store.text
+        try previewDisk.write(to:url,atomically:true,encoding:.utf8)
+        await store.checkDisk()
+        try await wait {(try? await web.evaluateJavaScript("!!document.querySelector('#native-disk-diff details strong') && !!document.querySelector('#native-disk-diff table') && !!document.querySelector('#native-disk-diff .native-diff-delete')") as? Bool)==true}
+        _=try await web.evaluateJavaScript("document.querySelector('[data-view=source]').click();true")
+        let richCheck=try await web.evaluateJavaScript(#"""
+        (()=>{
+          const root=document.querySelector('#native-disk-diff'),ed=root.querySelector('.ProseMirror').editor;
+          const before=JSON.stringify(ed.getJSON());
+          ed.commands.insertContentAt(1,'MUST NOT CHANGE');
+          root.querySelector('.toggle-title').click();
+          if(root.querySelector('.toggle-title').isContentEditable)return false;
+          if(JSON.stringify(ed.getJSON())!==before)return false;
+          return root.querySelector('details').open && !!root.querySelector('h1') && ed.state.doc.textContent.includes('kind: new');
+        })()
+        """#) as? Bool
+        guard richCheck==true,await store.synchronizeEditor(),store.text==localPreview else {throw Failure("Disk preview controls changed a buffer or followed the left Code mode")}
+        _=try await web.evaluateJavaScript("document.querySelector('[data-view=preview]').click();true")
+        let richImage:NSImage=try await withCheckedThrowingContinuation {continuation in
+            web.takeSnapshot(with:nil){image,error in
+                if let image {continuation.resume(returning:image)}
+                else {continuation.resume(throwing:error ?? Failure("Rich preview snapshot failed"))}
+            }
+        }
+        if let tiff=richImage.tiffRepresentation,let bitmap=NSBitmapImageRep(data:tiff),let png=bitmap.representation(using:.png,properties:[:]) {
+            try png.write(to:URL(fileURLWithPath:"/tmp/md-rich-disk-preview.png"))
+        }
+        await store.applyExternal(token:store.externalChange!.token)
+        guard store.text==previewDisk,!store.isDirty else {throw Failure("Rich preview changed the bytes adopted by Apply")}
         window.orderOut(nil)
     }
 }

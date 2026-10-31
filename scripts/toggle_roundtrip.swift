@@ -110,9 +110,36 @@ let result = js(#"""
    window.__mdEditorBridge.applyContent(serialized);
    if (signature()!==expected) throw Error('Reopen lost nodes/marks, pass '+pass+'\n'+serialized+'\n'+signature());
  }
+ // Use ProseMirror's actual copy/paste pipeline. A plain insertContent call
+ // misses the open-slice fitting that used to replace the empty toggle.
+ const normalized=node=>{const json=node.toJSON();const clean=n=>{if(n.attrs)delete n.attrs.dir;n.content?.forEach(clean)};clean(json);return JSON.stringify(json)};
+ for(const nested of [false,true]) {
+   const target=toggle('Paste target',[{type:'paragraph'}]);
+   // Fixture setup is an earlier action, separate from the user's paste.
+   ed.chain().setContent({type:'doc',content:[nested?toggle('Outer',[target]):target,...content]})
+     .command(({tr})=>{tr.setTime(Date.now()-1000);return true}).run();
+   const from=ed.state.doc.firstChild.nodeSize;
+   const copied=ed.state.doc.slice(from,ed.state.doc.content.size);
+   const expectedBody=normalized(ed.state.doc.copy(copied.content));
+   const clipboard=ed.view.serializeForClipboard(copied);
+   const before=normalized(ed.state.doc);
+   document.querySelectorAll('#editor details').forEach(el=>el.open=true);
+   ed.commands.setTextSelection(nested?3:2);
+   ed.view.pasteHTML(clipboard.dom.innerHTML);
+   const pasted=nested?ed.state.doc.firstChild.firstChild:ed.state.doc.firstChild;
+   if(pasted.type.name!=='toggle'||pasted.attrs.summary!=='Paste target')throw Error('Paste replaced the toggle container');
+   if(normalized(ed.state.doc.copy(pasted.content))!==expectedBody)throw Error('Paste lost rich content inside toggle');
+   const after=normalized(ed.state.doc);
+   ed.commands.undo();
+   if(normalized(ed.state.doc)!==before)throw Error('One Undo did not restore the empty toggle');
+   ed.commands.redo();
+   if(normalized(ed.state.doc)!==after)throw Error('Redo did not restore the pasted toggle');
+   document.querySelector('[data-view=source]').click();document.querySelector('[data-view=preview]').click();
+   if(normalized(ed.state.doc)!==after)throw Error('Pasted toggle changed after Code/Preview');
+ }
  return {pass:true,markdown:serialized};
 })()
 """#) as? [String: Any]
 guard result?["pass"] as? Bool == true else { fputs("FAIL: toggle regression\n", stderr); exit(1) }
-print("PASS: toggle paragraphs, headings, marks, links, nested lists, tasks, quotes, fenced code, table, image, divider, nested toggles; 3 mode switches and reparses")
+print("PASS: toggle rich content, 3 mode switches/reparses, actual formatted copy/paste into empty and nested toggles")
 exit(0)

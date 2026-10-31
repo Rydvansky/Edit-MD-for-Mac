@@ -243334,6 +243334,9 @@ ${body}
     name: "toggle",
     group: "block",
     content: "block+",
+    // Pasting a full block selection into an empty body must retain this
+    // container, rather than letting ProseMirror replace it with the slice.
+    defining: true,
     addAttributes() {
       return {
         summary: {
@@ -243408,7 +243411,7 @@ ${body}
           }).run();
         };
         const startEdit = () => {
-          if (editing) return;
+          if (editing || !editor.isEditable) return;
           editing = true;
           title2.contentEditable = "true";
           title2.classList.add("editing");
@@ -253424,6 +253427,8 @@ These are the exact on-disk formats MD Editor Plus needs so each block renders i
     };
     window.NativeEditorIntegration?.install(window.__mdEditorBridge, {
       Plugin, PluginKey, Decoration, DecorationSet,
+      createDiskEditor: createDiffEditor,
+      frontmatter: markdown => splitFrontmatter(markdown).frontmatter,
       rich: getEditor, source: getSourceEditor, isSource: () => sourceMode,
       sourceMarkdown: getSourceMarkdown,
       parse(markdown) {

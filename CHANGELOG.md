@@ -12,6 +12,18 @@ This project follows semantic versioning: `MAJOR.MINOR.PATCH`.
 - Match regular Markdown table text to the surrounding editor text size, including the selected text-size setting.
 - Align all Markdown table cell text at the top left, including cells with explicit alignment markers.
 
+## [2.0.16] - 2026-10-31
+
+### Changed
+
+- Show external disk changes in an independent read-only Preview, including tables, formatting and expanded toggles. Keep yellow additions and red struck-out removals, even when the local editor is in Code mode.
+- Show frontmatter in the disk Preview so metadata changes remain visible. Preserve readable disk source as a fallback if Preview cannot render it.
+
+### Fixed
+
+- Keep empty toggle containers when pasting formatted blocks into their body. Regression checks use the actual clipboard pipeline for empty and nested toggles, Undo/Redo and Code/Preview round trips.
+- Prevent editing toggle titles in read-only previews. Disk Preview also rejects document-changing transactions and keeps the exact disk bytes for Apply.
+
 ## [2.0.15] - 2026-10-31
 
 ### Fixed

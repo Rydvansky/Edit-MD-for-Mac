@@ -13,7 +13,11 @@
 .native-comparison-toast button:hover{background:var(--block-hover,#eee)}
 .native-comparison-toast button:disabled{opacity:.45;cursor:default}
 .native-comparison-label{padding:12px;color:var(--text-secondary,#666);font:11px/1.5 -apple-system,sans-serif}
-#native-disk-diff{margin:0;padding:0 16px 40px;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace;user-select:text}
+#native-disk-diff{margin:0;padding:0 24px 40px;overflow-wrap:anywhere;font:16px/1.7 var(--font-body,-apple-system,BlinkMacSystemFont,sans-serif);user-select:text}
+#native-disk-diff>.ProseMirror{min-height:0;padding:0}
+#native-disk-diff.native-disk-source-fallback{white-space:pre-wrap;font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace}
+#native-disk-diff .native-deleted{pointer-events:auto}
+#native-disk-diff :is(.mp-table-sel-box,.mp-table-grip,.mp-table-add-row,.mp-table-add-col,.column-resize-handle){display:none!important}
 .native-diff-delete{color:#ad2638;background:rgba(220,60,70,.12);text-decoration:line-through}
 .native-diff-add,.native-added,.native-added-block{background:rgba(255,208,40,.28)!important}
 .native-deleted{color:#ad2638;background:rgba(220,60,70,.12);text-decoration:line-through;white-space:pre-wrap;pointer-events:none}
