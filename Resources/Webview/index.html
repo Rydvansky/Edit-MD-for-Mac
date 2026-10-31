@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edit MD for Mac</title>
+  <script src="native-host.js"></script>
+</head>
+<body>
+  <div id="toolbar">
+    <div class="segmented" id="view-seg">
+      <button class="seg-btn active" data-view="preview" data-tip="Notion view — rich rendering"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M251,123.13c-.37-.81-9.13-20.26-28.48-39.61C196.63,57.67,164,44,128,44S59.37,57.67,33.51,83.52C14.16,102.87,5.4,122.32,5,123.13a12.08,12.08,0,0,0,0,9.75c.37.82,9.13,20.26,28.49,39.61C59.37,198.34,92,212,128,212s68.63-13.66,94.48-39.51c19.36-19.35,28.12-38.79,28.49-39.61A12.08,12.08,0,0,0,251,123.13ZM128,188c-30.59,0-58.67-11.7-79.4-32.48C74.93,142.73,101.41,128,128,128s53.07,14.73,79.4,27.52C186.67,176.3,158.59,188,128,188Zm0-104a44,44,0,1,0,44,44A44.05,44.05,0,0,0,128,84Zm0,64a20,20,0,1,1,20-20A20,20,0,0,1,128,148Z"/></svg><span class="seg-label">Preview</span></button>
+      <button class="seg-btn" data-view="source" data-tip="Source view — raw markdown"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M96,73,34.06,128,96,183A12,12,0,1,1,80,201L8,137A12,12,0,0,1,8,119L80,55A12,12,0,0,1,96,73ZM248,119,176,55A12,12,0,1,0,160,73l61.91,55L160,183A12,12,0,1,0,176,201l72-64A12,12,0,0,0,248,119Z"/></svg><span class="seg-label">Code</span><span class="fm-badge hidden" id="fm-badge" aria-hidden="true"></span></button>
+    </div>
+    <button class="toolbar-icon" id="outline-btn" data-tip="Outline (⌘⇧O)"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round" viewBox="0 0 256 256"><line x1="40" y1="64" x2="60" y2="64"/><line x1="100" y1="64" x2="216" y2="64"/><line x1="80" y1="128" x2="100" y2="128"/><line x1="140" y1="128" x2="216" y2="128"/><line x1="80" y1="192" x2="100" y2="192"/><line x1="140" y1="192" x2="216" y2="192"/></svg></button>
+    <button class="toolbar-icon" id="structure-map-btn" data-tip="Structure map"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" viewBox="0 0 256 256"><line x1="176" y1="52" x2="216" y2="52"/><line x1="176" y1="100" x2="204" y2="100"/><line x1="176" y1="148" x2="216" y2="148"/><line x1="176" y1="196" x2="204" y2="196"/><rect x="40" y="84" width="80" height="88" rx="10" fill="currentColor" fill-opacity="0.18" stroke-width="16"/></svg></button>
+    <span class="toolbar-filename" id="toolbar-filename"></span>
+    <span class="save-indicator" id="save-indicator" aria-live="polite"></span>
+    <button class="readonly-pill" id="readonly-pill" hidden data-tip="Read-only — click to enable editing"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M208,76H180V56A52,52,0,0,0,76,56V76H48A20,20,0,0,0,28,96V208a20,20,0,0,0,20,20H208a20,20,0,0,0,20-20V96A20,20,0,0,0,208,76ZM100,56a28,28,0,1,1,56,0V76ZM204,204H52V100H204Z"/></svg><span>Read only</span></button>
+    <span class="toolbar-spacer"></span>
+    <button class="toolbar-icon" id="fullwidth-btn" data-tip="Full width — use the entire window width" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M240.49,136.49l-32,32a12,12,0,0,1-17-17L203,140H53l11.52,11.51a12,12,0,0,1-17,17l-32-32a12,12,0,0,1,0-17l32-32a12,12,0,1,1,17,17L53,116H203a12,12,0,0,1,17-17l32,32A12,12,0,0,1,240.49,136.49Z"/></svg></button>
+    <button class="toolbar-icon" id="settings-btn" data-tip="Display settings"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path fill-rule="evenodd" d="M128 196a68 68 0 1 0 0-136 68 68 0 0 0 0 136Zm0-34a34 34 0 1 0 0-68 34 34 0 0 0 0 68Z"/><rect x="114" y="14" width="28" height="54" rx="9"/><rect x="114" y="188" width="28" height="54" rx="9"/><rect x="14" y="114" width="54" height="28" rx="9"/><rect x="188" y="114" width="54" height="28" rx="9"/><rect x="114" y="14" width="28" height="54" rx="9" transform="rotate(45 128 128)"/><rect x="114" y="188" width="28" height="54" rx="9" transform="rotate(45 128 128)"/><rect x="14" y="114" width="54" height="28" rx="9" transform="rotate(45 128 128)"/><rect x="188" y="114" width="54" height="28" rx="9" transform="rotate(45 128 128)"/></svg></button>
+    <button class="toolbar-icon" id="actions-btn" data-tip="More actions"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M156,128a28,28,0,1,1-28-28A28,28,0,0,1,156,128ZM48,100a12,12,0,1,0,12,12A12,12,0,0,0,48,100Zm160,0a12,12,0,1,0,12,12A12,12,0,0,0,208,100Z"/></svg></button>
+  </div>
+  <div class="settings-panel hidden" id="settings-panel">
+    <div class="settings-section">
+      <div class="settings-label">Theme</div>
+      <div class="segmented full-width" id="theme-seg">
+        <button class="seg-btn active" data-theme="light" data-tip="Light — Notion's classic white background"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M116,36V20a12,12,0,0,1,24,0V36a12,12,0,0,1-24,0Zm80,92a68,68,0,1,1-68-68A68.07,68.07,0,0,1,196,128Zm-24,0a44,44,0,1,0-44,44A44.05,44.05,0,0,0,172,128ZM51.51,68.49a12,12,0,1,0,17-17l-12-12a12,12,0,0,0-17,17Zm0,119-12,12a12,12,0,0,0,17,17l12-12a12,12,0,0,0-17-17ZM196,72a12,12,0,0,0,8.49-3.51l12-12a12,12,0,0,0-17-17L212.49,72A12,12,0,0,0,196,72Zm8.49,115.51a12,12,0,0,0-17,17l12,12a12,12,0,0,0,17-17l-12-12A12,12,0,0,0,204.49,187.51ZM48,128a12,12,0,0,0-12-12H20a12,12,0,0,0,0,24H36A12,12,0,0,0,48,128Zm80,80a12,12,0,0,0-12,12v16a12,12,0,0,0,24,0V220A12,12,0,0,0,128,208Zm108-92H220a12,12,0,0,0,0,24h16a12,12,0,0,0,0-24Z"/></svg></button>
+        <button class="seg-btn" data-theme="claude" data-tip="Claude — soft warm tones"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="2.4"/></svg></button>
+        <button class="seg-btn" data-theme="dark" data-tip="Dark — deep dark background"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M236.37,139.4a12,12,0,0,0-12-3A84.07,84.07,0,0,1,119.6,31.59a12,12,0,0,0-15-15A108.86,108.86,0,0,0,49.69,55.07,108,108,0,0,0,136,228a107.09,107.09,0,0,0,64.93-21.69,108.86,108.86,0,0,0,38.44-54.94A12.12,12.12,0,0,0,236.37,139.4Z"/></svg></button>
+        <button class="seg-btn" data-theme="os" data-tip="OS — follow system light/dark mode"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M224,72H212V64a28,28,0,0,0-28-28H40A28,28,0,0,0,12,64v88a28,28,0,0,0,28,28h96v12a28,28,0,0,0,28,28h60a28,28,0,0,0,28-28V100A28,28,0,0,0,224,72ZM40,156a4,4,0,0,1-4-4V64a4,4,0,0,1,4-4H184a4,4,0,0,1,4,4v8H164a28,28,0,0,0-28,28v56Zm188,36a4,4,0,0,1-4,4H164a4,4,0,0,1-4-4V100a4,4,0,0,1,4-4h60a4,4,0,0,1,4,4ZM124,208a12,12,0,0,1-12,12H88a12,12,0,0,1,0-24h24A12,12,0,0,0,124,208Zm88-84a12,12,0,0,1-12,12h-4v4a12,12,0,0,1,0-24h4v-4a12,12,0,0,1,24,0v4h4A12,12,0,0,1,212,128Z"/></svg></button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Page width</div>
+      <div class="settings-row" id="page-width-row" data-tip="Maximum content width in pixels">
+        <span class="settings-row-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 256 256"><line x1="36" y1="48" x2="36" y2="208"/><line x1="220" y1="48" x2="220" y2="208"/><line x1="80" y1="128" x2="176" y2="128"/><polyline points="102,108 80,128 102,148"/><polyline points="154,108 176,128 154,148"/></svg></span>
+        <span class="settings-row-label">Page width:</span>
+        <span class="width-pill" id="width-value">800</span>
+      </div>
+      <div class="settings-custom-slider" id="custom-slider-row">
+        <div class="slider-wrap">
+          <div class="slider-stops" aria-hidden="true">
+            <span class="slider-stop" style="left:0%" data-stop="600" data-tip="600 px — Narrow"></span>
+            <span class="slider-stop" style="left:25%" data-stop="800" data-tip="800 px — Default"></span>
+            <span class="slider-stop" style="left:50%" data-stop="1000" data-tip="1000 px — Comfortable"></span>
+            <span class="slider-stop" style="left:75%" data-stop="1200" data-tip="1200 px — Wide"></span>
+            <span class="slider-stop" style="left:100%" data-stop="1400" data-tip="1400 px — Extra wide"></span>
+          </div>
+          <input type="range" min="600" max="1400" value="800" step="1" class="width-slider" id="width-slider" data-tip="Drag to set page width. Snaps to dots near them." />
+        </div>
+      </div>
+      <div class="settings-row" data-tip="Use the entire window width (overrides the slider)">
+        <span class="settings-row-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M240.49,136.49l-32,32a12,12,0,0,1-17-17L203,140H53l11.52,11.51a12,12,0,0,1-17,17l-32-32a12,12,0,0,1,0-17l32-32a12,12,0,1,1,17,17L53,116H203a12,12,0,0,1,17-17l32,32A12,12,0,0,1,240.49,136.49Z"/></svg></span>
+        <span class="settings-row-label">Full width</span>
+        <button class="toggle-switch" id="full-width-toggle" role="switch" aria-checked="false"></button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Text size</div>
+      <div class="segmented full-width" id="text-seg">
+        <button class="seg-btn" data-text="s" data-tip="Small"><span style="font-size:14px">S</span></button>
+        <button class="seg-btn active" data-text="m" data-tip="Medium (default)"><span style="font-size:16px">M</span></button>
+        <button class="seg-btn" data-text="l" data-tip="Large"><span style="font-size:18px">L</span></button>
+        <button class="seg-btn" data-text="xl" data-tip="Extra large"><span style="font-size:20px">XL</span></button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Font</div>
+      <div class="segmented full-width" id="font-seg">
+        <button class="seg-btn active" data-font="sans" data-tip="Sans-serif"><span style="font-family:ui-sans-serif,'Inter',sans-serif;font-weight:600">Aa</span> Sans</button>
+        <button class="seg-btn" data-font="serif" data-tip="Serif"><span style="font-family:ui-serif,'Georgia',serif;font-weight:700">Aa</span> Serif</button>
+        <button class="seg-btn" data-font="mono" data-tip="Monospace"><span style="font-family:ui-monospace,'JetBrains Mono',monospace;font-weight:600">Aa</span> Mono</button>
+      </div>
+    </div>
+    <div class="settings-divider"></div>
+    <div class="settings-section">
+      <div class="settings-label">Code &amp; diagrams</div>
+      <div class="settings-row" data-tip="Force fenced code blocks to use a dark theme even on light pages">
+        <span class="settings-row-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M96,73,34.06,128,96,183A12,12,0,1,1,80,201L8,137A12,12,0,0,1,8,119L80,55A12,12,0,0,1,96,73ZM248,119,176,55A12,12,0,1,0,160,73l61.91,55L160,183A12,12,0,1,0,176,201l72-64A12,12,0,0,0,248,119Z"/></svg></span>
+        <span class="settings-row-label">Always dark: Code Snippets</span>
+        <button class="toggle-switch" id="always-dark-code-toggle" role="switch" aria-checked="false"></button>
+      </div>
+      <div class="settings-row" data-tip="Force mermaid diagrams to use a dark theme regardless of the page theme">
+        <span class="settings-row-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M96,73,34.06,128,96,183A12,12,0,1,1,80,201L8,137A12,12,0,0,1,8,119L80,55A12,12,0,0,1,96,73ZM248,119,176,55A12,12,0,1,0,160,73l61.91,55L160,183A12,12,0,1,0,176,201l72-64A12,12,0,0,0,248,119Z"/></svg></span>
+        <span class="settings-row-label">Always dark: Mermaid diagrams</span>
+        <button class="toggle-switch" id="always-dark-diagram-toggle" role="switch" aria-checked="false"></button>
+      </div>
+      <div class="settings-row" data-tip="Force the raw source view to use a dark theme even on light pages">
+        <span class="settings-row-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M96,73,34.06,128,96,183A12,12,0,1,1,80,201L8,137A12,12,0,0,1,8,119L80,55A12,12,0,0,1,96,73ZM248,119,176,55A12,12,0,1,0,160,73l61.91,55L160,183A12,12,0,1,0,176,201l72-64A12,12,0,0,0,248,119Z"/></svg></span>
+        <span class="settings-row-label">Always dark: Code view</span>
+        <button class="toggle-switch" id="always-dark-source-toggle" role="switch" aria-checked="false"></button>
+      </div>
+      <div class="settings-row" data-tip="Render the source view at full window width — leaves the rendered view alone">
+        <span class="settings-row-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M240.49,136.49l-32,32a12,12,0,0,1-17-17L203,140H53l11.52,11.51a12,12,0,0,1-17,17l-32-32a12,12,0,0,1,0-17l32-32a12,12,0,1,1,17,17L53,116H203a12,12,0,0,1,17-17l32,32A12,12,0,0,1,240.49,136.49Z"/></svg></span>
+        <span class="settings-row-label">Full width: Only in Code view</span>
+        <button class="toggle-switch" id="source-full-width-toggle" role="switch" aria-checked="false"></button>
+      </div>
+      <div class="settings-row" data-tip="Wrap long lines in Code view instead of horizontal scrolling">
+        <span class="settings-row-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M96,73,34.06,128,96,183A12,12,0,1,1,80,201L8,137A12,12,0,0,1,8,119L80,55A12,12,0,0,1,96,73ZM248,119,176,55A12,12,0,1,0,160,73l61.91,55L160,183A12,12,0,1,0,176,201l72-64A12,12,0,0,0,248,119Z"/></svg></span>
+        <span class="settings-row-label">Word wrap: Only in Code view</span>
+        <button class="toggle-switch" id="source-word-wrap-toggle" role="switch" aria-checked="false"></button>
+      </div>
+      <div class="settings-row" data-tip="Long code snippets collapse to a preview with a Show more button">
+        <span class="settings-row-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M96,73,34.06,128,96,183A12,12,0,1,1,80,201L8,137A12,12,0,0,1,8,119L80,55A12,12,0,0,1,96,73ZM248,119,176,55A12,12,0,1,0,160,73l61.91,55L160,183A12,12,0,1,0,176,201l72-64A12,12,0,0,0,248,119Z"/></svg></span>
+        <span class="settings-row-label">Shorten Code Snippets</span>
+        <button class="toggle-switch" id="shorten-snippets-toggle" role="switch" aria-checked="false"></button>
+      </div>
+    </div>
+    <div class="settings-divider"></div>
+    <div class="settings-section">
+      <div class="settings-label">Editing</div>
+      <div class="settings-row" data-tip="Replace typed sequences like -&gt; with → and -- with — as you type (never inside code)">
+        <span class="settings-row-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M240.49,136.49l-32,32a12,12,0,0,1-17-17L203,140H53l11.52,11.51a12,12,0,0,1-17,17l-32-32a12,12,0,0,1,0-17l32-32a12,12,0,1,1,17,17L53,116H203a12,12,0,0,1,17-17l32,32A12,12,0,0,1,240.49,136.49Z"/></svg></span>
+        <span class="settings-row-label">Smart typography</span>
+        <button class="toggle-switch" id="smart-typography-toggle" role="switch" aria-checked="false"></button>
+      </div>
+    </div>
+    <div class="settings-divider"></div>
+    <div class="settings-defaults-row">
+      <button class="settings-defaults-btn primary" id="save-defaults-btn" data-tip="Persist the current view as your default for every Markdown file">Save view as default</button>
+      <button class="settings-defaults-btn link" id="reset-defaults-btn" data-tip="Clear saved defaults and restore the built-in ones">Reset</button>
+    </div>
+  </div>
+  <div class="actions-panel hidden" id="actions-panel-filename" data-anchor="filename">
+    <button class="settings-action act-copy" data-tip="Copy the entire markdown to clipboard"><span class="settings-action-label">Copy page content</span></button>
+    <button class="settings-action act-copy-path" data-tip="Copy the absolute file path to clipboard"><span class="settings-action-label">Copy file path</span></button>
+    <button class="settings-action act-duplicate" data-tip="Save a copy of this file in the same folder"><span class="settings-action-label">Duplicate</span></button>
+    <button class="settings-action act-finder" data-tip="Reveal this file in your OS file browser"><span class="settings-action-label">Open in Finder</span></button>
+    <button class="settings-action act-export-menu" data-submenu="export"><span class="settings-action-label">Export</span><span class="settings-action-caret">›</span></button>
+  </div>
+  <div class="actions-panel hidden" id="actions-panel-dots" data-anchor="dots">
+    <button class="settings-action act-find" data-tip="Find text in this document (⌘F / Ctrl+F)"><span class="settings-action-label">Find in page</span></button>
+    <div class="actions-sep"></div>
+    <div class="settings-action readonly-row" id="readonly-row" data-tip="Lock this file — blocks typing and structural edits (never persists; reopen to edit)"><span class="settings-action-label">Read only</span><button class="toggle-switch" id="readonly-toggle" role="switch" aria-checked="false" tabindex="-1"></button></div>
+    <div class="actions-sep"></div>
+    <button class="settings-action act-copy" data-tip="Copy the entire markdown to clipboard"><span class="settings-action-label">Copy page content</span></button>
+    <button class="settings-action act-copy-path" data-tip="Copy the absolute file path to clipboard"><span class="settings-action-label">Copy file path</span></button>
+    <button class="settings-action act-duplicate" data-tip="Save a copy of this file in the same folder"><span class="settings-action-label">Duplicate</span></button>
+    <button class="settings-action act-finder" data-tip="Reveal this file in your OS file browser"><span class="settings-action-label">Open in Finder</span></button>
+    <button class="settings-action act-open-menu" data-submenu="open" data-tip="Open another markdown file"><span class="settings-action-label">Open</span><span class="settings-action-caret">›</span></button>
+    <div class="actions-sep"></div>
+    <div class="actions-group-label">Export &amp; tools</div>
+    <button class="settings-action act-export-menu" data-submenu="export"><span class="settings-action-label">Export</span><span class="settings-action-caret">›</span></button>
+  </div>
+  <div class="outline-panel hidden" id="outline-panel"></div>
+  <div class="structure-map" id="structure-map" aria-hidden="true"></div>
+  <div class="actions-submenu hidden" id="actions-submenu-export" role="menu">
+    <button class="settings-action act-export-html" data-tip="Save the rendered view as a standalone HTML file"><span class="settings-action-label">Export to HTML</span></button>
+    <button class="settings-action act-export-pdf" data-tip="Render to PDF"><span class="settings-action-label">Export to PDF</span></button>
+  </div>
+  <div class="actions-submenu hidden" id="actions-submenu-open" role="menu">
+    <button class="settings-action act-open-clipboard" data-tip="Read a file path from the clipboard and open that markdown file"><span class="settings-action-label">From clipboard path</span></button>
+    <button class="settings-action act-browse-markdown" data-tip="Pick a markdown file from disk"><span class="settings-action-label">Browse files…</span></button>
+  </div>
+  <div id="editor"></div>
+  <div id="source-view">
+    <div id="source-editor"></div>
+  </div>
+  <script src="webview.js"></script>
+</body>
+</html>

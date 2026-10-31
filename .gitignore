@@ -1,0 +1,13 @@
+.DS_Store
+**/.DS_Store
+
+.build/
+.build-*/
+dist/
+
+md-editor-plus/
+
+AGENTS.md
+agent.md
+Agent.md
+agents.md
