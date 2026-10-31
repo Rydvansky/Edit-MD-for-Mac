@@ -24,6 +24,7 @@ Consolidated release notes for Edit MD for Mac.
 - Simplify the in-window interface and remove unused logo and AI controls. Retain the MD Editor Plus attribution and license notices.
 - Match table text to the surrounding editor size, align cells at the top left, wrap long content, fill the preview width and keep grid lines continuous. Expand the demo with dense and wrapping tables.
 - Consolidate development release notes under version 2.1.19 and keep bundle version metadata aligned with VERSION during packaging.
+- Remove internal architecture notes and regression commands from README; keep engineering safeguards in AGENTS.md.
 
 ### Fixed
 
