@@ -10,30 +10,30 @@ Current version is stored in `VERSION`.
 
 ![Screenshot-info](Edit-MD-for-Mac-1.png)
 
-## Можливості
+## Features
 
-### Файли
+### Files
 
-- Відкриває файли `.md`, `.markdown`, `.mdown`, `.mkd` і `.txt`.
-- Виявляє зовнішні зміни. Якщо є незбережені правки, показує порівняння версій і дає застосувати версію з диска або залишити свої зміни.
-- Якщо локальних правок немає, оновлює документ після змін на диску.
+- Opens `.md`, `.markdown`, `.mdown`, `.mkd`, and `.txt` files.
+- Detects changes made outside the app. If local edits are pending, it shows a comparison and lets you apply the disk version or keep your edits.
+- Reloads the document automatically when the file changes and there are no local edits.
 
-### Редактор
+### Editor
 
-- Містить шпаргалку з Markdown і демонстраційний файл.
-- Має два режими роботи з документом: Code і Preview.
-- Дає форматувати заголовки, текст, посилання, списки й завдання через інтерфейс або символи Markdown.
-- Дає створювати цитати, callout-блоки, згортані секції й таблиці через інтерфейс або символи Markdown. У таблицях можна додавати рядки та стовпці й змінювати їхню ширину.
-- Підтримує зображення, блоки коду, діаграми Mermaid, дошки Kanban, табличні дошки й білі дошки.
-- Має пошук у документі, зміст за заголовками та карту його структури.
-- Дає переглядати файл у режимі лише читання.
+- Includes a Markdown guide and a demo document.
+- Offers two document modes: Code and Preview.
+- Format headings, text, links, lists, and tasks through the interface or with Markdown syntax.
+- Create quotes, callouts, collapsible sections, and tables through the interface or with Markdown syntax. Add table rows and columns, and resize columns.
+- Supports images, code blocks, Mermaid diagrams, Kanban boards, table boards, and whiteboards.
+- Find text, navigate with the outline, and inspect the document structure map.
+- Open a document in read-only mode.
 
-### Вигляд та експорт
+### Display and export
 
-- Має теми light, dark і system.
-- Дає змінювати шрифт, розмір тексту й ширину сторінки.
-- Має перенесення довгих рядків у Code, темне оформлення блоків коду й діаграм, скорочений показ довгих фрагментів коду та автоматичну типографіку.
-- Експортує документ у HTML або PDF.
+- Choose a light, dark, or system theme.
+- Change the font, text size, and page width.
+- Set line wrapping in Code, use dark themes for code blocks and diagrams, collapse long code snippets, and enable smart typography.
+- Export a document to HTML or PDF.
 
 ## Download And Install
 
